@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Isometric Rubik's - Interactive 3D Visualization</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      overflow: hidden;
+      background: #000;
+      font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    canvas {
+      display: block;
+      position: fixed;
+      top: 0;
+      left: 0;
+    }
+
+    /* Controller Panel - Vercel-inspired design */
+    .controller {
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      z-index: 1000;
+      font-size: 13px;
+      user-select: none;
+    }
+
+    .controller-toggle {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: rgba(20, 20, 20, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .controller-toggle:hover {
+      background: rgba(30, 30, 30, 0.95);
+      border-color: rgba(255, 255, 255, 0.2);
+      color: #fff;
+    }
+
+    .controller-toggle svg {
+      width: 18px;
+      height: 18px;
+      transition: transform 0.3s ease;
+    }
+
+    .controller.open .controller-toggle svg {
+      transform: rotate(90deg);
+    }
+
+    .controller-panel {
+      position: absolute;
+      bottom: 52px;
+      right: 0;
+      width: 260px;
+      background: rgba(12, 12, 12, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      overflow: hidden;
+      opacity: 0;
+      transform: translateY(10px) scale(0.95);
+      transform-origin: bottom right;
+      pointer-events: none;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .controller.open .controller-panel {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
+
+    .controller-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .controller-title {
+      font-weight: 600;
+      font-size: 13px;
+      color: #fff;
+      letter-spacing: -0.01em;
+    }
+
+    .controller-subtitle {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    .hide-btn {
+      width: 28px;
+      height: 28px;
+      border: none;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      color: rgba(255, 255, 255, 0.5);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+
+    .hide-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .hide-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .controller-content {
+      padding: 12px 16px 16px;
+    }
+
+    .control-group {
+      margin-bottom: 16px;
+    }
+
+    .control-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .control-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .control-label-text {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.6);
+      font-weight: 500;
+    }
+
+    .control-value {
+      font-size: 12px;
+      color: #00d4aa;
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Slider styling */
+    .control-slider {
+      width: 100%;
+      height: 6px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .control-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      background: #fff;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .control-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.1);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    .control-slider::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      background: #fff;
+      border-radius: 50%;
+      cursor: pointer;
+      border: none;
+      transition: transform 0.15s ease;
+    }
+
+    /* Divider */
+    .control-divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.06);
+      margin: 16px 0;
+    }
+
+    /* Toggle switch */
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 36px;
+      height: 20px;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      transition: all 0.2s ease;
+    }
+
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background: rgba(255, 255, 255, 0.5);
+      border-radius: 50%;
+      transition: all 0.2s ease;
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+      background: rgba(0, 212, 170, 0.3);
+    }
+
+    .toggle-switch input:checked + .toggle-slider:before {
+      transform: translateX(16px);
+      background: #00d4aa;
+    }
+
+    /* Playback controls */
+    .playback-controls {
+      display: flex;
+      gap: 6px;
+    }
+
+    .playback-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.5);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+      font-family: inherit;
+    }
+
+    .playback-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .playback-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.15);
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .playback-btn.active {
+      background: rgba(0, 212, 170, 0.15);
+      border-color: rgba(0, 212, 170, 0.3);
+      color: #00d4aa;
+    }
+
+    /* Select dropdown */
+    .control-select {
+      width: 100%;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      outline: none;
+      transition: all 0.15s ease;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.5)' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 32px;
+    }
+
+    .control-select:hover {
+      background-color: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .control-select:focus {
+      border-color: rgba(0, 212, 170, 0.5);
+    }
+
+    .control-select option {
+      background: #1a1a1a;
+      color: #fff;
+    }
+
+    /* Footer link */
+    .control-footer {
+      padding-top: 4px;
+    }
+
+    .website-link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 8px;
+      color: rgba(255, 255, 255, 0.5);
+      text-decoration: none;
+      font-size: 11px;
+      transition: all 0.15s ease;
+    }
+
+    .website-link:hover {
+      background: rgba(0, 212, 170, 0.1);
+      border-color: rgba(0, 212, 170, 0.2);
+      color: #00d4aa;
+    }
+
+    .hide-ui-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 10px 12px;
+      margin-top: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.03);
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .hide-ui-btn:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.15);
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .hide-ui-hint {
+      margin-left: auto;
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.3);
+      background: rgba(255, 255, 255, 0.06);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .controller.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Controller Widget -->
+  <div class="controller" id="controller">
+    <div class="controller-panel">
+      <div class="controller-header">
+        <div>
+          <div class="controller-title">Settings</div>
+          <div class="controller-subtitle">Customise the visualisation</div>
+        </div>
+        <button class="hide-btn" id="hide-btn" title="Hide settings">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="controller-content">
+        <!-- Playback Controls -->
+        <div class="control-group">
+          <div class="control-label">
+            <span class="control-label-text">Playback</span>
+          </div>
+          <div class="playback-controls">
+            <button class="playback-btn active" id="play-btn" title="Play">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+            </button>
+            <button class="playback-btn" id="pause-btn" title="Pause">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+              </svg>
+            </button>
+            <button class="playback-btn" id="stop-btn" title="Stop">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M6 6h12v12H6z"/>
+              </svg>
+            </button>
+            <button class="playback-btn" id="solve-btn" title="Solve">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Speed Control -->
+        <div class="control-group">
+          <div class="control-label">
+            <span class="control-label-text">Animation Speed</span>
+            <span class="control-value" id="speed-value">0.6x</span>
+          </div>
+          <input type="range" class="control-slider" id="speed-slider" min="0.2" max="3" step="0.1" value="0.6">
+        </div>
+
+        <!-- Grid Size Control -->
+        <div class="control-group">
+          <div class="control-label">
+            <span class="control-label-text">Grid Size</span>
+            <span class="control-value" id="grid-value">10</span>
+          </div>
+          <input type="range" class="control-slider" id="grid-slider" min="2" max="16" step="1" value="10">
+        </div>
+
+        <!-- Move Frequency Control -->
+        <div class="control-group">
+          <div class="control-label">
+            <span class="control-label-text">Move Frequency</span>
+            <span class="control-value" id="freq-value">Normal</span>
+          </div>
+          <input type="range" class="control-slider" id="freq-slider" min="1" max="5" step="1" value="3">
+        </div>
+
+        <!-- Sync Toggle -->
+        <div class="control-group">
+          <div class="control-label">
+            <span class="control-label-text">Sync Moves</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="sync-toggle" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Color Scheme -->
+        <div class="control-group">
+          <div class="control-label">
+            <span class="control-label-text">Colour Scheme</span>
+          </div>
+          <select class="control-select" id="color-scheme">
+            <option value="classic">Classic</option>
+            <option value="monochrome">Monochrome</option>
+            <option value="neon">Neon</option>
+            <option value="ocean">Ocean</option>
+            <option value="sunset">Sunset</option>
+            <option value="forest">Forest</option>
+            <option value="pastel">Pastel</option>
+          </select>
+        </div>
+
+        <div class="control-divider"></div>
+
+        <!-- Links -->
+        <div class="control-footer">
+          <a href="https://oscarbeamish.com" target="_blank" class="website-link">
+            <span>oscarbeamish.com</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+          </a>
+          <a href="https://www.reddit.com/r/creativecoding/comments/1r78hw2/procedurally_generated_rubiks_cube_pattern/" target="_blank" class="website-link" style="margin-top: 8px;">
+            <span>Original Inspiration</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+          </a>
+          <button class="hide-ui-btn" id="hide-ui-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+              <line x1="1" y1="1" x2="23" y2="23"></line>
+            </svg>
+            <span>Hide UI</span>
+            <span class="hide-ui-hint">Press H to show</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <button class="controller-toggle" id="controller-toggle" aria-label="Toggle settings">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    </button>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script src="sketch.js" type="module"></script>
+
+  <script>
+    // Controller panel toggle
+    const controller = document.getElementById('controller');
+    const toggle = document.getElementById('controller-toggle');
+
+    const hideBtn = document.getElementById('hide-btn');
+    const hideUiBtn = document.getElementById('hide-ui-btn');
+
+    toggle.addEventListener('click', () => {
+      controller.classList.toggle('open');
+    });
+
+    hideBtn.addEventListener('click', () => {
+      controller.classList.remove('open');
+    });
+
+    // Hide entire UI (press H to show again)
+    hideUiBtn.addEventListener('click', () => {
+      controller.classList.remove('open');
+      controller.classList.add('hidden');
+    });
+
+    document.addEventListener('keydown', (e) => {
+      // Ignore if user is typing in an input
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+      const key = e.key.toLowerCase();
+
+      // H - Toggle UI visibility
+      if (key === 'h') {
+        controller.classList.toggle('hidden');
+      }
+
+      // Space - Toggle pause/play
+      if (key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        const isPaused = pauseBtn.classList.contains('active');
+        if (isPaused) {
+          setPlaybackState('play');
+          window.dispatchEvent(new CustomEvent('rubiks-settings', {
+            detail: { type: 'playback', value: 'play' }
+          }));
+        } else {
+          setPlaybackState('pause');
+          window.dispatchEvent(new CustomEvent('rubiks-settings', {
+            detail: { type: 'playback', value: 'pause' }
+          }));
+        }
+      }
+
+      // Enter - Solve
+      if (key === 'enter') {
+        setPlaybackState('stop');
+        window.dispatchEvent(new CustomEvent('rubiks-settings', {
+          detail: { type: 'solve' }
+        }));
+      }
+
+      // Number keys 1-7 for color schemes
+      const colorSchemes = ['classic', 'monochrome', 'neon', 'ocean', 'sunset', 'forest', 'pastel'];
+      const num = parseInt(key);
+      if (num >= 1 && num <= 7) {
+        const scheme = colorSchemes[num - 1];
+        colorScheme.value = scheme;
+        window.dispatchEvent(new CustomEvent('rubiks-settings', {
+          detail: { type: 'colorScheme', value: scheme }
+        }));
+      }
+    });
+
+    // Close panel when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!controller.contains(e.target)) {
+        controller.classList.remove('open');
+      }
+    });
+
+    // Slider value displays
+    const speedSlider = document.getElementById('speed-slider');
+    const speedValue = document.getElementById('speed-value');
+    const gridSlider = document.getElementById('grid-slider');
+    const gridValue = document.getElementById('grid-value');
+    const freqSlider = document.getElementById('freq-slider');
+    const freqValue = document.getElementById('freq-value');
+
+    const freqLabels = ['Very Slow', 'Slow', 'Normal', 'Fast', 'Very Fast'];
+
+    // Playback controls
+    const playBtn = document.getElementById('play-btn');
+    const pauseBtn = document.getElementById('pause-btn');
+    const stopBtn = document.getElementById('stop-btn');
+
+    function setPlaybackState(state) {
+      playBtn.classList.toggle('active', state === 'play');
+      pauseBtn.classList.toggle('active', state === 'pause');
+      stopBtn.classList.toggle('active', state === 'stop');
+    }
+
+    playBtn.addEventListener('click', () => {
+      setPlaybackState('play');
+      window.dispatchEvent(new CustomEvent('rubiks-settings', {
+        detail: { type: 'playback', value: 'play' }
+      }));
+    });
+
+    pauseBtn.addEventListener('click', () => {
+      setPlaybackState('pause');
+      window.dispatchEvent(new CustomEvent('rubiks-settings', {
+        detail: { type: 'playback', value: 'pause' }
+      }));
+    });
+
+    stopBtn.addEventListener('click', () => {
+      setPlaybackState('stop');
+      window.dispatchEvent(new CustomEvent('rubiks-settings', {
+        detail: { type: 'playback', value: 'stop' }
+      }));
+    });
+
+    // Solve button
+    const solveBtn = document.getElementById('solve-btn');
+    solveBtn.addEventListener('click', () => {
+      // Set playback to stop so cubes stay solved
+      setPlaybackState('stop');
+      window.dispatchEvent(new CustomEvent('rubiks-settings', {
+        detail: { type: 'solve' }
+      }));
+    });
+
+    speedSlider.addEventListener('input', () => {
+      speedValue.textContent = parseFloat(speedSlider.value).toFixed(1) + 'x';
+      window.dispatchEvent(new CustomEvent('rubiks-settings', {
+        detail: { type: 'speed', value: parseFloat(speedSlider.value) }
+      }));
+    });
+
+    gridSlider.addEventListener('input', () => {
+      gridValue.textContent = gridSlider.value;
+      window.dispatchEvent(new CustomEvent('rubiks-settings', {
+        detail: { type: 'grid', value: parseInt(gridSlider.value) }
+      }));
+    });
+
+    freqSlider.addEventListener('input', () => {
+      freqValue.textContent = freqLabels[parseInt(freqSlider.value) - 1];
+      window.dispatchEvent(new CustomEvent('rubiks-settings', {
+        detail: { type: 'frequency', value: parseInt(freqSlider.value) }
+      }));
+    });
+
+    // Sync toggle
+    const syncToggle = document.getElementById('sync-toggle');
+    syncToggle.addEventListener('change', () => {
+      window.dispatchEvent(new CustomEvent('rubiks-settings', {
+        detail: { type: 'sync', value: syncToggle.checked }
+      }));
+    });
+
+    // Color scheme
+    const colorScheme = document.getElementById('color-scheme');
+    colorScheme.addEventListener('change', () => {
+      window.dispatchEvent(new CustomEvent('rubiks-settings', {
+        detail: { type: 'colorScheme', value: colorScheme.value }
+      }));
+    });
+
+  </script>
+</body>
+</html>
