@@ -868,11 +868,17 @@ window.addEventListener('rubiks-settings', (e) => {
 
     case 'frequency':
       settings.frequency = value;
-      // Update all cubes' delay immediately for responsiveness
+      // Update timing immediately for responsiveness
       const [minDelay, maxDelay] = frequencyDelays[value];
-      cubes.forEach(cube => {
-        cube.delay = Math.random() * (maxDelay - minDelay) + minDelay;
-      });
+      if (settings.sync) {
+        // In sync mode, update the next move time
+        syncNextMoveTime = performance.now() + Math.random() * (maxDelay - minDelay) + minDelay;
+      } else {
+        // In independent mode, update each cube's delay
+        cubes.forEach(cube => {
+          cube.delay = Math.random() * (maxDelay - minDelay) + minDelay;
+        });
+      }
       break;
 
     case 'sync':
