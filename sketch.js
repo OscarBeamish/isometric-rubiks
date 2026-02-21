@@ -250,7 +250,7 @@ class RubiksCube {
     // Animation state
     this.isAnimating = false;
     this.animProgress = 0;
-    this.animDuration = 400; // Duration in milliseconds (300-400ms feels natural)
+    this.animDuration = 300; // Duration in milliseconds
     this.animStartTime = null;
     this.animAxis = null;
     this.animLayer = null;
@@ -258,8 +258,8 @@ class RubiksCube {
     this.animatingCubies = [];
     this.animPivot = new THREE.Group();
 
-    // Timing for random moves
-    this.delay = Math.random() * 2000 + 1000; // milliseconds
+    // Timing for random moves (will be set from settings.delay on first move)
+    this.delay = 0;
     this.lastMoveTime = performance.now();
 
     // Track last move to avoid redundant moves
@@ -393,9 +393,11 @@ class RubiksCube {
     const elapsed = currentTime - this.animStartTime;
     // Use currentAnimDuration which accounts for double turns
     // Apply speed multiplier from settings (slider value * 0.4 = internal speed)
-    // Solving uses faster speed
     const internalSpeed = settings.speed * 0.4;
-    const speedMultiplier = this.isSolving ? Math.max(internalSpeed, 0.6) : internalSpeed;
+    // Solving uses accelerating speed based on progress
+    const speedMultiplier = this.isSolving
+      ? internalSpeed * this.getSolveSpeedMultiplier()
+      : internalSpeed;
     const adjustedDuration = this.currentAnimDuration / speedMultiplier;
     this.animProgress = Math.min(elapsed / adjustedDuration, 1);
 
@@ -499,6 +501,13 @@ class RubiksCube {
 
     this.isAnimating = false;
     this.animatingCubies = [];
+
+    // For sync mode with 0 delay, immediately start next move
+    // This eliminates the 1-frame delay between moves
+    if (!this.isSolving && settings.sync && settings.delay === 0 &&
+        settings.playback !== 'pause' && settings.playback !== 'stop') {
+      this.randomMove();
+    }
   }
 
   randomMove() {
@@ -558,10 +567,30 @@ class RubiksCube {
     this.isSolving = true;
     this.solveMoves = [...moves];
     this.solveCurrentMoveIndex = 0;
+    this.solveTotalMoves = moves.length;
     this.moveHistory = []; // Clear history
 
     // Start the first solve move
     this.startNextSolveMove();
+  }
+
+  // Calculate solve speed multiplier based on progress (accelerates as solve progresses)
+  getSolveSpeedMultiplier() {
+    if (!this.solveTotalMoves || this.solveTotalMoves === 0) return 1;
+
+    // Progress from 0 to 1
+    const progress = this.solveCurrentMoveIndex / this.solveTotalMoves;
+
+    // Start at user's selected speed, end at 25x that speed
+    // Using ease-out curve so speed ramps up quickly at the start
+    const minMultiplier = 1;
+    const maxMultiplier = 25;
+
+    // Ease-out cubic: fast acceleration at start, then levels off
+    // 1 - (1-t)^3 gives rapid initial increase
+    const eased = 1 - Math.pow(1 - progress, 3);
+
+    return minMultiplier + (maxMultiplier - minMultiplier) * eased;
   }
 
   startNextSolveMove() {
@@ -574,11 +603,7 @@ class RubiksCube {
     const move = this.solveMoves[this.solveCurrentMoveIndex];
     this.solveCurrentMoveIndex++;
 
-    // Use faster animation for solve moves (feels snappier)
-    const originalDuration = this.animDuration;
-    this.animDuration = 150; // Faster for solving
     this.startMove(move.axis, move.layer, move.dir, move.turnAmount, false);
-    this.animDuration = originalDuration;
   }
 
   // Main solve entry point - reverses all moves to solve
@@ -621,6 +646,7 @@ class RubiksCube {
     this.isSolving = false;
     this.solveMoves = null;
     this.solveCurrentMoveIndex = 0;
+    this.solveTotalMoves = 0;
     this.lastMove = null;
   }
 }
@@ -632,7 +658,7 @@ const cubeSize = 2.0;
 // Controller settings
 let settings = {
   speed: 1,           // Animation speed (slider value, scaled internally by 0.4)
-  delay: 1000,        // Delay between moves in ms (slider value)
+  delay: 0,           // Delay between moves in ms (slider value)
   gridSize: 10,       // Number of rows/cols
   sync: true,         // Whether all cubes move at the same time
   playback: 'play',   // 'play', 'pause', or 'stop'
@@ -998,9 +1024,14 @@ function animate(currentTime) {
         }
       });
       // Schedule next move with delay
+      // For zero delay, set to -1 so it triggers immediately on next check
       const baseDelay = settings.delay;
-      const randomVariation = baseDelay * 0.2;
-      syncNextMoveTime = currentTime + baseDelay + (Math.random() - 0.5) * 2 * randomVariation;
+      if (baseDelay === 0) {
+        syncNextMoveTime = 0; // Always ready immediately
+      } else {
+        const randomVariation = baseDelay * 0.2;
+        syncNextMoveTime = currentTime + baseDelay + (Math.random() - 0.5) * 2 * randomVariation;
+      }
     }
   }
 
