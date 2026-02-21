@@ -1,9 +1,8 @@
 # Isometric Rubik's
 
-An interactive visualization of a grid of Rubik's cubes in isometric projection. Watch as layers rotate with satisfying animations, creating a mesmerizing pattern.
+An interactive visualisation of a grid of Rubik's cubes in isometric projection. Watch as layers rotate with satisfying animations, creating a mesmerising pattern.
 
-<!-- ![Demo](./demo.gif) -->
-<!-- Uncomment and add a screenshot or gif once you've got one -->
+![Demo](./demo.gif)
 
 ## Tech Stack
 
