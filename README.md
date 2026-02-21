@@ -30,10 +30,11 @@ Open the URL shown in your terminal.
 
 - **Isometric projection** — classic 30°/45° rotation for that clean look
 - **Sync mode** — all cubes rotate together in harmony
-- **Multiple color schemes** — Classic, Neon, Ocean, Sunset, Forest, Pastel, Monochrome
+- **Multiple colour schemes** — Classic, Neon, Ocean, Sunset, Forest, Pastel, Monochrome
 - **Playback controls** — Play, pause, stop, and solve
-- **Solve animation** — reverses all moves to return cubes to solved state
-- **Adjustable settings** — speed, grid size, move frequency
+- **Accelerating solve** — solve animation speeds up as it progresses
+- **Hover mode** — cubes rotate when you mouse over them
+- **Adjustable settings** — animation speed, move delay, zoom level
 - **Hide UI** — press `H` to toggle UI visibility for clean screenshots/recordings
 - **Responsive** — scales to any screen size
 
@@ -44,11 +45,17 @@ Open the URL shown in your terminal.
 | Settings gear | Open settings panel |
 | `H` key | Toggle UI visibility |
 | Play/Pause/Stop | Control animation playback |
-| Solve button | Reverse all moves to solved state |
+| Solve button | Reverse all moves to solved state (with accelerating animation) |
+| Animation Speed | Adjust rotation speed (0.5x - 5x) |
+| Move Delay | Time between moves (0 - 3s) |
+| Zoom | Adjust grid density (2 - 16) |
+| Sync toggle | All cubes move together or independently |
+| Hover Mode | Cubes rotate on mouse hover |
+| Colour Scheme | Choose from 7 colour palettes |
 
 ## How It Works
 
-The visualization uses Three.js with an orthographic camera set to isometric angles (30° X, -45° Y). Each Rubik's cube is a group of 27 cubies with shared geometry and materials for performance.
+The visualisation uses Three.js with an orthographic camera set to isometric angles (30° X, -45° Y). Each Rubik's cube is a group of 27 cubies with shared geometry and materials for performance.
 
 Layer rotations are animated using a pivot group technique — cubies in the rotating layer are temporarily parented to a pivot, rotated, then reparented back with snapped positions.
 
