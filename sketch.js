@@ -8,6 +8,30 @@
 
 import * as THREE from 'three';
 
+// Reverse a single move (flip the direction)
+function reverseMove(move) {
+  return {
+    axis: move.axis,
+    layer: move.layer,
+    dir: -move.dir, // Reverse direction
+    turnAmount: move.turnAmount
+  };
+}
+
+// Solve a cube by reversing all moves in reverse order
+// This is mathematically equivalent to the "inverse scramble" technique
+function solveCube(moveHistory) {
+  if (!moveHistory || moveHistory.length === 0) {
+    return []; // Already solved
+  }
+
+  // Reverse all moves and reverse the order
+  return moveHistory
+    .slice() // Copy array
+    .reverse() // Reverse order
+    .map(reverseMove); // Reverse each move direction
+}
+
 // Scene setup
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
@@ -342,18 +366,6 @@ class RubiksCube {
     });
   }
 
-  // Cubic ease-in-out - smoother than quadratic
-  easeInOutCubic(t) {
-    return t < 0.5
-      ? 4 * t * t * t
-      : 1 - Math.pow(-2 * t + 2, 3) / 2;
-  }
-
-  // Power3 out - snappy feel like a real cube turn
-  easeOutPower3(t) {
-    return 1 - Math.pow(1 - t, 3);
-  }
-
   // Custom ease: quick acceleration, smooth deceleration with slight settle
   // Mimics the feel of a finger flick on a real Rubik's cube
   easeFingerFlick(t) {
@@ -368,66 +380,73 @@ class RubiksCube {
     }
   }
 
+  updateAnimation(currentTime) {
+    // If paused, freeze the current animation progress
+    if (settings.playback === 'pause' && !this.isSolving) {
+      return;
+    }
+
+    if (!this.animStartTime) {
+      this.animStartTime = currentTime;
+    }
+
+    const elapsed = currentTime - this.animStartTime;
+    // Use currentAnimDuration which accounts for double turns
+    // Apply speed multiplier from settings (slider value * 0.4 = internal speed)
+    // Solving uses faster speed
+    const internalSpeed = settings.speed * 0.4;
+    const speedMultiplier = this.isSolving ? Math.max(internalSpeed, 0.6) : internalSpeed;
+    const adjustedDuration = this.currentAnimDuration / speedMultiplier;
+    this.animProgress = Math.min(elapsed / adjustedDuration, 1);
+
+    if (this.animProgress >= 1) {
+      this.finishMove();
+    } else {
+      // Use the finger flick easing for natural cube rotation feel
+      const eased = this.easeFingerFlick(this.animProgress);
+      // Multiply by turnAmount: 1 for 90°, 2 for 180°
+      const angle = (Math.PI / 2) * this.animTurnAmount * eased * this.animDir;
+
+      // Rotate the pivot
+      if (this.animAxis === 'x') {
+        this.animPivot.rotation.set(angle, 0, 0);
+      } else if (this.animAxis === 'y') {
+        this.animPivot.rotation.set(0, angle, 0);
+      } else {
+        this.animPivot.rotation.set(0, 0, angle);
+      }
+    }
+  }
+
   update(currentTime) {
-    // Handle solve animation first
+    // Handle solve animation
     if (this.isSolving) {
-      this.updateSolve(currentTime);
+      // Run normal animation update, then check if we need next solve move
+      if (this.isAnimating) {
+        this.updateAnimation(currentTime);
+      } else {
+        this.updateSolve(currentTime);
+      }
       return;
     }
 
     // Handle current animations
     if (this.isAnimating) {
-      // If paused, freeze the current animation progress
-      if (settings.playback === 'pause') {
-        return;
-      }
-
-      if (!this.animStartTime) {
-        this.animStartTime = currentTime;
-      }
-
-      const elapsed = currentTime - this.animStartTime;
-      // Use currentAnimDuration which accounts for double turns
-      // Apply speed multiplier from settings
-      const adjustedDuration = this.currentAnimDuration / settings.speed;
-      this.animProgress = Math.min(elapsed / adjustedDuration, 1);
-
-      if (this.animProgress >= 1) {
-        this.finishMove();
-      } else {
-        // Use the finger flick easing for natural cube rotation feel
-        const eased = this.easeFingerFlick(this.animProgress);
-        // Multiply by turnAmount: 1 for 90°, 2 for 180°
-        const angle = (Math.PI / 2) * this.animTurnAmount * eased * this.animDir;
-
-        // Rotate the pivot
-        if (this.animAxis === 'x') {
-          this.animPivot.rotation.set(angle, 0, 0);
-        } else if (this.animAxis === 'y') {
-          this.animPivot.rotation.set(0, angle, 0);
-        } else {
-          this.animPivot.rotation.set(0, 0, angle);
-        }
-      }
+      this.updateAnimation(currentTime);
     } else {
       // Don't start new moves if paused or stopped
       if (settings.playback === 'pause' || settings.playback === 'stop') {
         return;
       }
 
-      // Random layer rotations - time-based with frequency setting
-      if (settings.sync) {
-        // Sync mode: all cubes move at the same time
-        if (currentTime >= syncNextMoveTime) {
-          this.randomMove();
-        }
-      } else {
-        // Independent mode: each cube has its own timing
+      // Sync mode is handled in the main animate loop
+      // Independent mode: each cube has its own timing
+      if (!settings.sync) {
+        const baseDelay = settings.delay;
+        const randomVariation = baseDelay * 0.3;
         if (currentTime - this.lastMoveTime > this.delay) {
           this.lastMoveTime = currentTime;
-          // Use frequency setting to determine delay range
-          const [minDelay, maxDelay] = frequencyDelays[settings.frequency];
-          this.delay = Math.random() * (maxDelay - minDelay) + minDelay;
+          this.delay = baseDelay + (Math.random() - 0.5) * 2 * randomVariation;
           this.randomMove();
         }
       }
@@ -484,13 +503,16 @@ class RubiksCube {
 
   randomMove() {
     const axes = ['x', 'y', 'z'];
+    // Only use outer layers (0 and 2) - matches real cube scrambling
+    // and ensures Kociemba solver can find solutions
+    const outerLayers = [0, 2];
     let axis, layer, dir, turnAmount;
     let attempts = 0;
     const maxAttempts = 10;
 
     do {
       axis = axes[Math.floor(Math.random() * 3)];
-      layer = Math.floor(Math.random() * 3);
+      layer = outerLayers[Math.floor(Math.random() * 2)];
       dir = Math.random() < 0.5 ? 1 : -1;
 
       // 25% chance of double turn (180°), 75% chance of single turn (90°)
@@ -524,9 +546,9 @@ class RubiksCube {
     return false;
   }
 
-  // Solve by reversing move history
-  startSolve() {
-    if (this.isSolving || this.moveHistory.length === 0) return;
+  // Solve by animating through reverse moves
+  startSolutionSolve(moves) {
+    if (this.isSolving) return;
 
     // If currently animating a move, finish it first
     if (this.isAnimating) {
@@ -534,70 +556,71 @@ class RubiksCube {
     }
 
     this.isSolving = true;
-    // Create a copy of move history reversed
-    this.solveQueue = [...this.moveHistory].reverse();
+    this.solveMoves = [...moves];
+    this.solveCurrentMoveIndex = 0;
     this.moveHistory = []; // Clear history
 
-    // Start the first reverse move
-    this.nextSolveMove();
+    // Start the first solve move
+    this.startNextSolveMove();
   }
 
-  nextSolveMove() {
-    if (this.solveQueue.length === 0) {
+  startNextSolveMove() {
+    if (this.solveCurrentMoveIndex >= this.solveMoves.length) {
+      // All moves done
       this.finishSolve();
       return;
     }
 
-    const move = this.solveQueue.shift();
-    // Reverse the move: same axis and layer, but opposite direction
-    // For 180° turns, direction doesn't matter, keep same
-    const reverseDir = move.turnAmount === 2 ? move.dir : -move.dir;
-    this.startMove(move.axis, move.layer, reverseDir, move.turnAmount, false);
+    const move = this.solveMoves[this.solveCurrentMoveIndex];
+    this.solveCurrentMoveIndex++;
+
+    // Use faster animation for solve moves (feels snappier)
+    const originalDuration = this.animDuration;
+    this.animDuration = 150; // Faster for solving
+    this.startMove(move.axis, move.layer, move.dir, move.turnAmount, false);
+    this.animDuration = originalDuration;
+  }
+
+  // Main solve entry point - reverses all moves to solve
+  startSolve() {
+    if (this.isSolving) return;
+
+    // If currently animating a move, finish it first
+    if (this.isAnimating) {
+      this.finishMove();
+    }
+
+    // If we have move history, reverse the moves to solve
+    if (this.moveHistory.length > 0) {
+      const solution = solveCube(this.moveHistory);
+
+      if (solution.length > 0) {
+        // Apply solution moves (reversed scramble)
+        this.startSolutionSolve(solution);
+      }
+    }
+    // Already solved - nothing to do
   }
 
   updateSolve(currentTime) {
-    if (!this.isSolving) return false;
+    if (!this.isSolving) return;
 
-    // If we're animating a solve move, let it continue
-    if (this.isAnimating) {
-      // Handle the animation (copy of normal animation logic)
-      if (settings.playback === 'pause') {
-        return true;
-      }
-
-      if (!this.animStartTime) {
-        this.animStartTime = currentTime;
-      }
-
-      const elapsed = currentTime - this.animStartTime;
-      // Speed up solve animation slightly
-      const adjustedDuration = (this.currentAnimDuration * 0.6) / settings.speed;
-      this.animProgress = Math.min(elapsed / adjustedDuration, 1);
-
-      if (this.animProgress >= 1) {
-        this.finishMove();
-        // Start next solve move
-        this.nextSolveMove();
-      } else {
-        const eased = this.easeFingerFlick(this.animProgress);
-        const angle = (Math.PI / 2) * this.animTurnAmount * eased * this.animDir;
-
-        if (this.animAxis === 'x') {
-          this.animPivot.rotation.set(angle, 0, 0);
-        } else if (this.animAxis === 'y') {
-          this.animPivot.rotation.set(0, angle, 0);
-        } else {
-          this.animPivot.rotation.set(0, 0, angle);
-        }
-      }
+    if (settings.playback === 'pause') {
+      return;
     }
 
-    return true;
+    // Check if current move animation is done
+    if (!this.isAnimating && this.solveCurrentMoveIndex < this.solveMoves.length) {
+      this.startNextSolveMove();
+    } else if (!this.isAnimating && this.solveCurrentMoveIndex >= this.solveMoves.length) {
+      this.finishSolve();
+    }
   }
 
   finishSolve() {
     this.isSolving = false;
-    this.solveQueue = null;
+    this.solveMoves = null;
+    this.solveCurrentMoveIndex = 0;
     this.lastMove = null;
   }
 }
@@ -608,25 +631,22 @@ const cubeSize = 2.0;
 
 // Controller settings
 let settings = {
-  speed: 0.6,         // Animation speed multiplier (default feels right at 0.6)
+  speed: 1,           // Animation speed (slider value, scaled internally by 0.4)
+  delay: 1000,        // Delay between moves in ms (slider value)
   gridSize: 10,       // Number of rows/cols
-  frequency: 3,       // Move frequency (1-5, affects delay range)
   sync: true,         // Whether all cubes move at the same time
   playback: 'play',   // 'play', 'pause', or 'stop'
-  colorScheme: 'classic'
+  colorScheme: 'classic',
+  hoverMode: false    // Whether cubes rotate on hover
 };
 
-// Sync mode state
-let syncNextMoveTime = 0;
+// Sync mode state - use -1 to indicate not initialized yet
+let syncNextMoveTime = -1;
 
-// Frequency presets: [minDelay, maxDelay] in milliseconds
-const frequencyDelays = {
-  1: [3000, 5000],  // Very Slow
-  2: [2000, 3500],  // Slow
-  3: [800, 2300],   // Normal (default)
-  4: [400, 1200],   // Fast
-  5: [150, 600]     // Very Fast
-};
+// Hover mode state
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let hoveredCube = null;
 
 // Calculate exact projected dimensions for isometric cube
 // Rotation: X = 30° (π/6), Y = -45° (-π/4)
@@ -793,40 +813,7 @@ function createGrid() {
 
 }
 
-function animate(currentTime) {
-  requestAnimationFrame(animate);
-
-  // Handle color transition animation
-  if (colorTransitionProgress < 1) {
-    if (!colorTransitionStartTime) {
-      colorTransitionStartTime = currentTime;
-    }
-    const elapsed = currentTime - colorTransitionStartTime;
-    colorTransitionProgress = Math.min(elapsed / COLOR_TRANSITION_DURATION, 1);
-    updateMaterialColors(colorTransitionProgress);
-
-    // When transition completes, update currentColors to target
-    if (colorTransitionProgress >= 1) {
-      currentColors = { ...targetColors };
-    }
-  }
-
-  // Update all cubes first
-  cubes.forEach(c => c.update(currentTime));
-
-  // In sync mode, schedule the next move time after all cubes finish
-  // This must happen AFTER cube updates so they can start their moves first
-  if (settings.sync && currentTime >= syncNextMoveTime) {
-    // Check if all cubes are done animating (they just started on this frame)
-    const allDone = cubes.every(c => !c.isAnimating);
-    if (allDone) {
-      const [minDelay, maxDelay] = frequencyDelays[settings.frequency];
-      syncNextMoveTime = currentTime + Math.random() * (maxDelay - minDelay) + minDelay;
-    }
-  }
-
-  renderer.render(scene, camera);
-}
+// animate function is defined at the end of the file with hover mode support
 
 function updateCameraZoom() {
   // Scale frustum based on grid size (default 6 = base size)
@@ -849,9 +836,6 @@ function onResize() {
 
 window.addEventListener('resize', onResize);
 
-createGrid();
-animate();
-
 // Listen for settings changes from controller widget
 window.addEventListener('rubiks-settings', (e) => {
   const { type, value } = e.detail;
@@ -866,21 +850,6 @@ window.addEventListener('rubiks-settings', (e) => {
       createGrid(); // Rebuild grid with new size
       break;
 
-    case 'frequency':
-      settings.frequency = value;
-      // Update timing immediately for responsiveness
-      const [minDelay, maxDelay] = frequencyDelays[value];
-      if (settings.sync) {
-        // In sync mode, update the next move time
-        syncNextMoveTime = performance.now() + Math.random() * (maxDelay - minDelay) + minDelay;
-      } else {
-        // In independent mode, update each cube's delay
-        cubes.forEach(cube => {
-          cube.delay = Math.random() * (maxDelay - minDelay) + minDelay;
-        });
-      }
-      break;
-
     case 'sync':
       settings.sync = value;
       if (value) {
@@ -892,6 +861,8 @@ window.addEventListener('rubiks-settings', (e) => {
     case 'playback':
       settings.playback = value;
       if (value === 'play') {
+        // Disable hover mode when playing
+        settings.hoverMode = false;
         // Reset timing so moves start fresh
         const now = performance.now();
         cubes.forEach(cube => {
@@ -919,5 +890,126 @@ window.addEventListener('rubiks-settings', (e) => {
       settings.playback = 'stop';
       cubes.forEach(cube => cube.startSolve());
       break;
+
+    case 'delay':
+      settings.delay = value;
+      // Update sync timing to use new delay
+      if (settings.sync && syncNextMoveTime > 0) {
+        const allDone = cubes.every(c => !c.isAnimating && !c.isSolving);
+        if (allDone) {
+          // If not animating, apply new delay from now
+          syncNextMoveTime = performance.now() + value;
+        }
+      }
+      break;
+
+    case 'hoverMode':
+      settings.hoverMode = value;
+      if (value) {
+        // When enabling hover mode, stop auto playback
+        settings.playback = 'stop';
+      }
+      break;
   }
 });
+
+// Mouse tracking for hover mode
+function onMouseMove(event) {
+  // Convert mouse position to normalized device coordinates (-1 to +1)
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+}
+
+window.addEventListener('mousemove', onMouseMove);
+
+// Find which cube the mouse is over
+function getHoveredCube() {
+  raycaster.setFromCamera(mouse, camera);
+
+  // Check intersection with all cube groups
+  for (const cube of cubes) {
+    // Get all meshes in this cube's group
+    const meshes = [];
+    cube.group.traverse((child) => {
+      if (child.isMesh) {
+        meshes.push(child);
+      }
+    });
+
+    const intersects = raycaster.intersectObjects(meshes);
+    if (intersects.length > 0) {
+      return cube;
+    }
+  }
+
+  return null;
+}
+
+// Main animation loop with hover mode support
+function animate(currentTime) {
+  requestAnimationFrame(animate);
+
+  // Handle hover mode
+  if (settings.hoverMode) {
+    const newHoveredCube = getHoveredCube();
+
+    if (newHoveredCube && newHoveredCube !== hoveredCube) {
+      hoveredCube = newHoveredCube;
+    } else if (!newHoveredCube) {
+      hoveredCube = null;
+    }
+
+    // If hovering over a cube and it's not animating, start a move
+    if (hoveredCube && !hoveredCube.isAnimating && !hoveredCube.isSolving) {
+      hoveredCube.randomMove();
+    }
+  }
+
+  // Handle color transition animation
+  if (colorTransitionProgress < 1) {
+    if (!colorTransitionStartTime) {
+      colorTransitionStartTime = currentTime;
+    }
+    const elapsed = currentTime - colorTransitionStartTime;
+    colorTransitionProgress = Math.min(elapsed / COLOR_TRANSITION_DURATION, 1);
+    updateMaterialColors(colorTransitionProgress);
+
+    if (colorTransitionProgress >= 1) {
+      currentColors = { ...targetColors };
+    }
+  }
+
+  // In sync mode (when not in hover mode), handle timing
+  if (!settings.hoverMode && settings.sync) {
+    // Initialize sync time on first run
+    if (syncNextMoveTime < 0) {
+      syncNextMoveTime = currentTime;
+    }
+
+    // Check if it's time to trigger moves AND all cubes are ready
+    const timeToMove = currentTime >= syncNextMoveTime;
+    const allDone = cubes.every(c => !c.isAnimating && !c.isSolving);
+
+    if (timeToMove && allDone) {
+      // Trigger moves on all cubes
+      cubes.forEach(c => {
+        if (settings.playback !== 'pause' && settings.playback !== 'stop') {
+          c.randomMove();
+        }
+      });
+      // Schedule next move with delay
+      const baseDelay = settings.delay;
+      const randomVariation = baseDelay * 0.2;
+      syncNextMoveTime = currentTime + baseDelay + (Math.random() - 0.5) * 2 * randomVariation;
+    }
+  }
+
+  // Update all cubes (handles animation progress, independent mode timing)
+  cubes.forEach(c => c.update(currentTime));
+
+  renderer.render(scene, camera);
+}
+
+// Initialize
+createGrid();
+requestAnimationFrame(animate);

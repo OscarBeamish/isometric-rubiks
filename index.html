@@ -330,6 +330,62 @@
       color: #00d4aa;
     }
 
+    /* Solve button - larger and more prominent */
+    .solve-btn {
+      width: 100%;
+      height: 44px;
+      margin-top: 12px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, rgba(0, 212, 170, 0.2), rgba(0, 168, 255, 0.2));
+      border: 1px solid rgba(0, 212, 170, 0.3);
+      color: #00d4aa;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .solve-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .solve-btn:hover {
+      background: linear-gradient(135deg, rgba(0, 212, 170, 0.3), rgba(0, 168, 255, 0.3));
+      border-color: rgba(0, 212, 170, 0.5);
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 212, 170, 0.2);
+    }
+
+    .solve-btn:active {
+      transform: translateY(0);
+    }
+
+    /* Spinner animation for solve button */
+    .solve-btn.loading .solve-icon {
+      display: none;
+    }
+
+    .solve-btn.loading .solve-spinner {
+      display: block;
+      animation: spin 1s linear infinite;
+    }
+
+    .solve-spinner {
+      display: none;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
     /* Select dropdown */
     .control-select {
       width: 100%;
@@ -476,21 +532,35 @@
                 <path d="M6 6h12v12H6z"/>
               </svg>
             </button>
-            <button class="playback-btn" id="solve-btn" title="Solve">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-              </svg>
-            </button>
           </div>
+          <button class="solve-btn" id="solve-btn" title="Solve all cubes (Enter)">
+            <svg class="solve-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            <svg class="solve-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+              <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
+            </svg>
+            <span class="solve-text">Solve</span>
+          </button>
         </div>
 
         <!-- Speed Control -->
         <div class="control-group">
           <div class="control-label">
             <span class="control-label-text">Animation Speed</span>
-            <span class="control-value" id="speed-value">0.6x</span>
+            <span class="control-value" id="speed-value">1x</span>
           </div>
-          <input type="range" class="control-slider" id="speed-slider" min="0.2" max="3" step="0.1" value="0.6">
+          <input type="range" class="control-slider" id="speed-slider" min="0.5" max="5" step="0.1" value="1">
+        </div>
+
+        <!-- Delay Control -->
+        <div class="control-group">
+          <div class="control-label">
+            <span class="control-label-text">Move Delay</span>
+            <span class="control-value" id="delay-value">1.0s</span>
+          </div>
+          <input type="range" class="control-slider" id="delay-slider" min="200" max="3000" step="100" value="1000">
         </div>
 
         <!-- Zoom Control -->
@@ -502,21 +572,23 @@
           <input type="range" class="control-slider" id="zoom-slider" min="2" max="16" step="1" value="10">
         </div>
 
-        <!-- Move Frequency Control -->
-        <div class="control-group">
-          <div class="control-label">
-            <span class="control-label-text">Move Frequency</span>
-            <span class="control-value" id="freq-value">Normal</span>
-          </div>
-          <input type="range" class="control-slider" id="freq-slider" min="1" max="5" step="1" value="3">
-        </div>
-
         <!-- Sync Toggle -->
         <div class="control-group">
           <div class="control-label">
             <span class="control-label-text">Sync Moves</span>
             <label class="toggle-switch">
               <input type="checkbox" id="sync-toggle" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Hover Mode Toggle -->
+        <div class="control-group">
+          <div class="control-label">
+            <span class="control-label-text">Hover Mode</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="hover-toggle">
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -542,16 +614,16 @@
 
         <!-- Links -->
         <div class="control-footer">
-          <a href="https://oscarbeamish.com" target="_blank" class="website-link">
-            <span>oscarbeamish.com</span>
+          <a href="https://www.reddit.com/r/creativecoding/comments/1r78hw2/procedurally_generated_rubiks_cube_pattern/" target="_blank" class="website-link">
+            <span>Original Inspiration</span>
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
               <polyline points="15 3 21 3 21 9"></polyline>
               <line x1="10" y1="14" x2="21" y2="3"></line>
             </svg>
           </a>
-          <a href="https://www.reddit.com/r/creativecoding/comments/1r78hw2/procedurally_generated_rubiks_cube_pattern/" target="_blank" class="website-link" style="margin-top: 8px;">
-            <span>Original Inspiration</span>
+          <a href="https://oscarbeamish.com" target="_blank" class="website-link" style="margin-top: 8px;">
+            <span>oscarbeamish.com</span>
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
               <polyline points="15 3 21 3 21 9"></polyline>
@@ -626,16 +698,18 @@
       // Space - Toggle pause/play
       if (key === ' ' || e.code === 'Space') {
         e.preventDefault();
-        const isPaused = pauseBtn.classList.contains('active');
-        if (isPaused) {
-          setPlaybackState('play');
-          window.dispatchEvent(new CustomEvent('rubiks-settings', {
-            detail: { type: 'playback', value: 'play' }
-          }));
-        } else {
+        const isPlaying = playBtn.classList.contains('active');
+        if (isPlaying) {
+          // Currently playing -> pause
           setPlaybackState('pause');
           window.dispatchEvent(new CustomEvent('rubiks-settings', {
             detail: { type: 'playback', value: 'pause' }
+          }));
+        } else {
+          // Currently paused or stopped -> play
+          setPlaybackState('play');
+          window.dispatchEvent(new CustomEvent('rubiks-settings', {
+            detail: { type: 'playback', value: 'play' }
           }));
         }
       }
@@ -645,6 +719,17 @@
         setPlaybackState('stop');
         window.dispatchEvent(new CustomEvent('rubiks-settings', {
           detail: { type: 'solve' }
+        }));
+      }
+
+      // M - Toggle hover mode
+      if (key === 'm') {
+        hoverToggle.checked = !hoverToggle.checked;
+        if (hoverToggle.checked) {
+          setPlaybackState('stop');
+        }
+        window.dispatchEvent(new CustomEvent('rubiks-settings', {
+          detail: { type: 'hoverMode', value: hoverToggle.checked }
         }));
       }
 
@@ -670,17 +755,18 @@
     // Slider value displays
     const speedSlider = document.getElementById('speed-slider');
     const speedValue = document.getElementById('speed-value');
+    const delaySlider = document.getElementById('delay-slider');
+    const delayValue = document.getElementById('delay-value');
     const zoomSlider = document.getElementById('zoom-slider');
     const zoomValue = document.getElementById('zoom-value');
-    const freqSlider = document.getElementById('freq-slider');
-    const freqValue = document.getElementById('freq-value');
-
-    const freqLabels = ['Very Slow', 'Slow', 'Normal', 'Fast', 'Very Fast'];
 
     // Playback controls
     const playBtn = document.getElementById('play-btn');
     const pauseBtn = document.getElementById('pause-btn');
     const stopBtn = document.getElementById('stop-btn');
+
+    // Hover mode toggle (defined early so it can be referenced in playback handlers)
+    const hoverToggle = document.getElementById('hover-toggle');
 
     function setPlaybackState(state) {
       playBtn.classList.toggle('active', state === 'play');
@@ -690,6 +776,8 @@
 
     playBtn.addEventListener('click', () => {
       setPlaybackState('play');
+      // Disable hover mode when playing
+      hoverToggle.checked = false;
       window.dispatchEvent(new CustomEvent('rubiks-settings', {
         detail: { type: 'playback', value: 'play' }
       }));
@@ -726,17 +814,18 @@
       }));
     });
 
+    delaySlider.addEventListener('input', () => {
+      const ms = parseInt(delaySlider.value);
+      delayValue.textContent = (ms / 1000).toFixed(1) + 's';
+      window.dispatchEvent(new CustomEvent('rubiks-settings', {
+        detail: { type: 'delay', value: ms }
+      }));
+    });
+
     zoomSlider.addEventListener('input', () => {
       zoomValue.textContent = zoomSlider.value;
       window.dispatchEvent(new CustomEvent('rubiks-settings', {
         detail: { type: 'grid', value: parseInt(zoomSlider.value) }
-      }));
-    });
-
-    freqSlider.addEventListener('input', () => {
-      freqValue.textContent = freqLabels[parseInt(freqSlider.value) - 1];
-      window.dispatchEvent(new CustomEvent('rubiks-settings', {
-        detail: { type: 'frequency', value: parseInt(freqSlider.value) }
       }));
     });
 
@@ -746,6 +835,17 @@
       window.dispatchEvent(new CustomEvent('rubiks-settings', {
         detail: { type: 'sync', value: syncToggle.checked }
       }));
+    });
+
+    // Hover mode toggle event listener
+    hoverToggle.addEventListener('change', () => {
+      window.dispatchEvent(new CustomEvent('rubiks-settings', {
+        detail: { type: 'hoverMode', value: hoverToggle.checked }
+      }));
+      // Update playback button states when hover mode changes
+      if (hoverToggle.checked) {
+        setPlaybackState('stop');
+      }
     });
 
     // Color scheme
