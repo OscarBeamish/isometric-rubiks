@@ -2,6 +2,8 @@
 
 An interactive visualisation of a grid of Rubik's cubes in isometric projection. Watch as layers rotate with satisfying animations, creating a mesmerising pattern.
 
+**[View Live Demo](https://rubiks.oscarbeamish.com/)**
+
 ![Demo](./demo.gif)
 
 ## Tech Stack
