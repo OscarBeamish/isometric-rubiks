@@ -666,6 +666,10 @@
   <script src="sketch.js" type="module"></script>
 
   <script>
+    // Check for embed/preview mode via URL parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const isEmbedMode = urlParams.has('embed') || urlParams.has('preview');
+
     // Controller panel toggle
     const controller = document.getElementById('controller');
     const toggle = document.getElementById('controller-toggle');
@@ -673,6 +677,12 @@
 
     const hideBtn = document.getElementById('hide-btn');
     const hideUiBtn = document.getElementById('hide-ui-btn');
+
+    // Hide UI immediately if in embed mode
+    if (isEmbedMode) {
+      controller.classList.add('hidden');
+      backBtn.classList.add('hidden');
+    }
 
     toggle.addEventListener('click', () => {
       controller.classList.toggle('open');
