@@ -740,7 +740,6 @@ let settings = {
   colorScheme: 'classic',
   hoverMode: false,   // Whether cubes rotate on hover
   loop: false,        // Whether to auto-loop (scramble -> solve -> repeat)
-  loopDuration: 6000  // Duration in ms before triggering solve in loop mode
 };
 
 // Loop mode state
@@ -1028,11 +1027,10 @@ window.addEventListener('rubiks-settings', (e) => {
         // Rebuild grid to get fresh solved cubes
         createGrid();
 
-        // Estimate how many moves fit in half the loop duration
-        const internalSpeed = settings.speed * 0.4;
-        const avgMoveDuration = (300 / internalSpeed) + settings.delay;
-        const halfDuration = settings.loopDuration / 2;
-        const moveCount = Math.max(4, Math.round(halfDuration / avgMoveDuration));
+        // Fixed 10 forward moves — palindrome gives exactly 22 moves per cycle
+        // (10 forward + bridge + 10 reverse + bridge)
+        // The loop duration is determined purely by animation speed and delay settings
+        const moveCount = 10;
 
         // Pre-compute palindrome sequences for each cube
         cubes.forEach(cube => {
@@ -1052,10 +1050,6 @@ window.addEventListener('rubiks-settings', (e) => {
           cube.loopIndex = 0;
         });
       }
-      break;
-
-    case 'loopDuration':
-      settings.loopDuration = value;
       break;
   }
 });

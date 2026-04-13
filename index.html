@@ -655,15 +655,6 @@
           </div>
         </div>
 
-        <!-- Loop Duration -->
-        <div class="control-group" id="loop-duration-group" style="display: none;">
-          <div class="control-label">
-            <span class="control-label-text">Loop Duration</span>
-            <span class="control-value" id="loop-duration-value">6s</span>
-          </div>
-          <input type="range" class="control-slider" id="loop-duration-slider" min="2" max="30" step="1" value="6">
-        </div>
-
         <!-- Color Scheme -->
         <div class="control-group">
           <div class="control-label">
@@ -818,7 +809,6 @@
       // L - Toggle loop mode
       if (key === 'l') {
         loopToggle.checked = !loopToggle.checked;
-        loopDurationGroup.style.display = loopToggle.checked ? 'block' : 'none';
         if (loopToggle.checked) {
           hoverToggle.checked = false;
           setPlaybackState('play');
@@ -882,7 +872,6 @@
 
     function disableLoop() {
       loopToggle.checked = false;
-      loopDurationGroup.style.display = 'none';
       window.dispatchEvent(new CustomEvent('rubiks-settings', {
         detail: { type: 'loop', value: false }
       }));
@@ -976,13 +965,9 @@
 
     // Loop mode
     const loopToggle = document.getElementById('loop-toggle');
-    const loopDurationGroup = document.getElementById('loop-duration-group');
-    const loopDurationSlider = document.getElementById('loop-duration-slider');
-    const loopDurationValue = document.getElementById('loop-duration-value');
 
     loopToggle.addEventListener('change', () => {
       const enabled = loopToggle.checked;
-      loopDurationGroup.style.display = enabled ? 'block' : 'none';
       if (enabled) {
         // Disable hover mode and set play state
         hoverToggle.checked = false;
@@ -990,14 +975,6 @@
       }
       window.dispatchEvent(new CustomEvent('rubiks-settings', {
         detail: { type: 'loop', value: enabled }
-      }));
-    });
-
-    loopDurationSlider.addEventListener('input', () => {
-      const seconds = parseInt(loopDurationSlider.value);
-      loopDurationValue.textContent = seconds + 's';
-      window.dispatchEvent(new CustomEvent('rubiks-settings', {
-        detail: { type: 'loopDuration', value: seconds * 1000 }
       }));
     });
 
