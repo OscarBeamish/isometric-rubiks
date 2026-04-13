@@ -4,9 +4,18 @@
  *
  * By Oscar Beamish - https://oscarbeamish.com
  * Inspired by: https://www.reddit.com/r/creativecoding/comments/1r78hw2/procedurally_generated_rubiks_cube_pattern/
+ *
+ * Usage:
+ *   import { initRubiks } from './sketch.js';
+ *   initRubiks(containerElement); // optional container, defaults to document.body
  */
 
 import * as THREE from 'three';
+
+// Module state - will be initialized when initRubiks is called
+let scene, camera, renderer;
+let container = null;
+let isInitialized = false;
 
 // Reverse a single move (flip the direction)
 function reverseMove(move) {
@@ -32,30 +41,10 @@ function solveCube(moveHistory) {
     .map(reverseMove); // Reverse each move direction
 }
 
-// Scene setup
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x000000);
-
-// Camera
+// Camera constants
 const baseFrustumSize = 10;
 let currentFrustumSize = baseFrustumSize;
-let aspect = window.innerWidth / window.innerHeight;
-const camera = new THREE.OrthographicCamera(
-  -currentFrustumSize * aspect / 2,
-  currentFrustumSize * aspect / 2,
-  currentFrustumSize / 2,
-  -currentFrustumSize / 2,
-  0.1,
-  1000
-);
-camera.position.set(0, 0, 10);
-camera.lookAt(0, 0, 0);
-
-// Renderer
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-document.body.appendChild(renderer.domElement);
+let aspect = 1;
 
 // Color schemes for Rubik's cube faces
 const COLOR_SCHEMES = {
@@ -219,7 +208,7 @@ function updateMaterialColors(t) {
 }
 
 // Start a color transition to a new scheme
-function startColorTransition(newScheme) {
+export function startColorTransition(newScheme) {
   // Store current colors as starting point (use actual material colors if mid-transition)
   if (colorTransitionProgress < 1) {
     // We're mid-transition, so capture current interpolated state
@@ -442,8 +431,8 @@ class RubiksCube {
       }
 
       // Sync mode is handled in the main animate loop
-      // Independent mode: each cube has its own timing
-      if (!settings.sync) {
+      // Independent mode: each cube has its own timing (skip if loop mode handles it)
+      if (!settings.sync && !settings.loop) {
         const baseDelay = settings.delay;
         const randomVariation = baseDelay * 0.3;
         if (currentTime - this.lastMoveTime > this.delay) {
@@ -504,7 +493,7 @@ class RubiksCube {
 
     // For sync mode with 0 delay, immediately start next move
     // This eliminates the 1-frame delay between moves
-    if (!this.isSolving && settings.sync && settings.delay === 0 &&
+    if (!this.isSolving && !settings.loop && settings.sync && settings.delay === 0 &&
         settings.playback !== 'pause' && settings.playback !== 'stop') {
       this.randomMove();
     }
@@ -649,6 +638,92 @@ class RubiksCube {
     this.solveTotalMoves = 0;
     this.lastMove = null;
   }
+
+  // --- Loop mode ---
+
+  // Pre-compute a palindrome move sequence for seamless looping.
+  // First half = random moves, second half = reverse order + reversed direction.
+  // Bridge moves inserted at seam points to hide the turnaround.
+  precomputeLoopSequence(moveCount) {
+    const axes = ['x', 'y', 'z'];
+    const outerLayers = [0, 2];
+
+    // Generate random forward moves with redundancy filtering
+    const forward = [];
+    let prev = null;
+    for (let i = 0; i < moveCount; i++) {
+      let axis, layer, dir, turnAmount;
+      let attempts = 0;
+      do {
+        axis = axes[Math.floor(Math.random() * 3)];
+        layer = outerLayers[Math.floor(Math.random() * 2)];
+        dir = Math.random() < 0.5 ? 1 : -1;
+        turnAmount = Math.random() < 0.25 ? 2 : 1;
+        attempts++;
+      } while (prev && this._isRedundantPair(prev, { axis, layer, dir, turnAmount }) && attempts < 10);
+
+      const move = { axis, layer, dir, turnAmount };
+      forward.push(move);
+      prev = move;
+    }
+
+    // Build reverse half
+    const reverse = forward.slice().reverse().map(m => ({
+      axis: m.axis, layer: m.layer, dir: -m.dir, turnAmount: m.turnAmount
+    }));
+
+    // Insert bridge move at the midpoint seam (between forward[-1] and reverse[0])
+    // The bridge uses a different axis than both neighbours
+    const lastForward = forward[forward.length - 1];
+    const firstReverse = reverse[0]; // same axis/layer as lastForward
+    const bridgeMid = this._makeBridgeMove(lastForward, firstReverse);
+
+    // Insert bridge at the loop-boundary seam (between reverse[-1] and forward[0])
+    const lastReverse = reverse[reverse.length - 1]; // same axis/layer as forward[0]
+    const firstForward = forward[0];
+    const bridgeEnd = this._makeBridgeMove(lastReverse, firstForward);
+
+    // Full sequence: forward + bridge + reverse + bridge
+    // When looped: ...bridgeEnd, forward[0], ..., forward[N-1], bridgeMid, reverse[0], ..., reverse[N-1], bridgeEnd, forward[0], ...
+    this.loopSequence = [...forward, bridgeMid, ...reverse, bridgeEnd];
+    this.loopIndex = 0;
+  }
+
+  // Check if two consecutive moves would look redundant
+  _isRedundantPair(a, b) {
+    if (a.axis === b.axis && a.layer === b.layer) {
+      if (a.dir === b.dir) return true;
+      if (a.dir === -b.dir && a.turnAmount === 1 && b.turnAmount === 1) return true;
+    }
+    return false;
+  }
+
+  // Create a bridge move that avoids the same axis/layer as its neighbours
+  _makeBridgeMove(before, after) {
+    const axes = ['x', 'y', 'z'];
+    const outerLayers = [0, 2];
+    let axis, layer, dir, turnAmount;
+    let attempts = 0;
+    do {
+      axis = axes[Math.floor(Math.random() * 3)];
+      layer = outerLayers[Math.floor(Math.random() * 2)];
+      dir = Math.random() < 0.5 ? 1 : -1;
+      turnAmount = Math.random() < 0.25 ? 2 : 1;
+      attempts++;
+    } while (attempts < 20 && (
+      (before && before.axis === axis && before.layer === layer) ||
+      (after && after.axis === axis && after.layer === layer)
+    ));
+    return { axis, layer, dir, turnAmount };
+  }
+
+  // Play next move from the loop sequence
+  playNextLoopMove() {
+    if (!this.loopSequence || this.loopSequence.length === 0) return;
+    const move = this.loopSequence[this.loopIndex];
+    this.loopIndex = (this.loopIndex + 1) % this.loopSequence.length;
+    this.startMove(move.axis, move.layer, move.dir, move.turnAmount, false);
+  }
 }
 
 // Grid
@@ -663,8 +738,13 @@ let settings = {
   sync: true,         // Whether all cubes move at the same time
   playback: 'play',   // 'play', 'pause', or 'stop'
   colorScheme: 'classic',
-  hoverMode: false    // Whether cubes rotate on hover
+  hoverMode: false,   // Whether cubes rotate on hover
+  loop: false,        // Whether to auto-loop (scramble -> solve -> repeat)
+  loopDuration: 6000  // Duration in ms before triggering solve in loop mode
 };
+
+// Loop mode state
+let loopStartTime = -1;   // Timing for next loop move
 
 // Sync mode state - use -1 to indicate not initialized yet
 let syncNextMoveTime = -1;
@@ -853,14 +933,19 @@ function updateCameraZoom() {
   camera.updateProjectionMatrix();
 }
 
-function onResize() {
-  aspect = window.innerWidth / window.innerHeight;
-  updateCameraZoom();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  createGrid();
+function getContainerSize() {
+  if (!container) return { width: window.innerWidth, height: window.innerHeight };
+  return { width: container.clientWidth, height: container.clientHeight };
 }
 
-window.addEventListener('resize', onResize);
+function onResize() {
+  if (!isInitialized) return;
+  const size = getContainerSize();
+  aspect = size.width / size.height;
+  updateCameraZoom();
+  renderer.setSize(size.width, size.height);
+  createGrid();
+}
 
 // Listen for settings changes from controller widget
 window.addEventListener('rubiks-settings', (e) => {
@@ -936,17 +1021,58 @@ window.addEventListener('rubiks-settings', (e) => {
         settings.playback = 'stop';
       }
       break;
+
+    case 'loop':
+      settings.loop = value;
+      if (value) {
+        // Rebuild grid to get fresh solved cubes
+        createGrid();
+
+        // Estimate how many moves fit in half the loop duration
+        const internalSpeed = settings.speed * 0.4;
+        const avgMoveDuration = (300 / internalSpeed) + settings.delay;
+        const halfDuration = settings.loopDuration / 2;
+        const moveCount = Math.max(4, Math.round(halfDuration / avgMoveDuration));
+
+        // Pre-compute palindrome sequences for each cube
+        cubes.forEach(cube => {
+          cube.precomputeLoopSequence(moveCount);
+          cube.lastMoveTime = performance.now();
+          cube.delay = 0;
+        });
+
+        settings.playback = 'play';
+        settings.hoverMode = false;
+        loopStartTime = performance.now();
+      } else {
+        loopStartTime = -1;
+        // Clear loop sequences
+        cubes.forEach(cube => {
+          cube.loopSequence = null;
+          cube.loopIndex = 0;
+        });
+      }
+      break;
+
+    case 'loopDuration':
+      settings.loopDuration = value;
+      break;
   }
 });
 
 // Mouse tracking for hover mode
 function onMouseMove(event) {
-  // Convert mouse position to normalized device coordinates (-1 to +1)
-  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  if (!container) {
+    // Full-page mode
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  } else {
+    // Container mode - calculate relative to container
+    const rect = container.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  }
 }
-
-window.addEventListener('mousemove', onMouseMove);
 
 // Find which cube the mouse is over
 function getHoveredCube() {
@@ -973,6 +1099,7 @@ function getHoveredCube() {
 
 // Main animation loop with hover mode support
 function animate(currentTime) {
+  if (!isInitialized) return;
   requestAnimationFrame(animate);
 
   // Handle hover mode
@@ -1005,8 +1132,8 @@ function animate(currentTime) {
     }
   }
 
-  // In sync mode (when not in hover mode), handle timing
-  if (!settings.hoverMode && settings.sync) {
+  // In sync mode (when not in hover mode and not looping), handle timing
+  if (!settings.hoverMode && settings.sync && !settings.loop) {
     // Initialize sync time on first run
     if (syncNextMoveTime < 0) {
       syncNextMoveTime = currentTime;
@@ -1035,12 +1162,456 @@ function animate(currentTime) {
     }
   }
 
+  // Loop mode logic — cubes play from pre-computed palindrome sequences
+  // The normal sync/independent move logic is skipped; loop drives moves directly
+  if (settings.loop) {
+    if (settings.sync) {
+      // Sync: all cubes move together
+      const allDone = cubes.every(c => !c.isAnimating && !c.isSolving);
+      if (allDone && settings.playback !== 'pause') {
+        // Check delay
+        if (loopStartTime < 0) loopStartTime = currentTime;
+        if (currentTime >= loopStartTime) {
+          cubes.forEach(c => c.playNextLoopMove());
+          const baseDelay = settings.delay;
+          if (baseDelay === 0) {
+            loopStartTime = 0;
+          } else {
+            const variation = baseDelay * 0.2;
+            loopStartTime = currentTime + baseDelay + (Math.random() - 0.5) * 2 * variation;
+          }
+        }
+      }
+    } else {
+      // Independent: each cube has its own timing
+      cubes.forEach(c => {
+        if (!c.isAnimating && !c.isSolving && settings.playback !== 'pause') {
+          const baseDelay = settings.delay;
+          const variation = baseDelay * 0.3;
+          if (currentTime - c.lastMoveTime > c.delay) {
+            c.lastMoveTime = currentTime;
+            c.delay = baseDelay + (Math.random() - 0.5) * 2 * variation;
+            c.playNextLoopMove();
+          }
+        }
+      });
+    }
+  }
+
   // Update all cubes (handles animation progress, independent mode timing)
   cubes.forEach(c => c.update(currentTime));
 
   renderer.render(scene, camera);
 }
 
-// Initialize
-createGrid();
-requestAnimationFrame(animate);
+/**
+ * Initialize the Rubik's cube visualization
+ * @param {HTMLElement} containerElement - Optional container element. If not provided, appends to document.body
+ */
+export function initRubiks(containerElement = null) {
+  if (isInitialized) {
+    console.warn('Rubiks visualization already initialized');
+    return;
+  }
+
+  container = containerElement;
+  const size = getContainerSize();
+  aspect = size.width / size.height;
+
+  // Scene setup
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x000000);
+
+  // Camera
+  currentFrustumSize = baseFrustumSize;
+  camera = new THREE.OrthographicCamera(
+    -currentFrustumSize * aspect / 2,
+    currentFrustumSize * aspect / 2,
+    currentFrustumSize / 2,
+    -currentFrustumSize / 2,
+    0.1,
+    1000
+  );
+  camera.position.set(0, 0, 10);
+  camera.lookAt(0, 0, 0);
+
+  // Renderer
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(size.width, size.height);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  // Append canvas to container or body
+  if (container) {
+    container.appendChild(renderer.domElement);
+  } else {
+    document.body.appendChild(renderer.domElement);
+  }
+
+  // Set up event listeners
+  window.addEventListener('resize', onResize);
+  window.addEventListener('mousemove', onMouseMove);
+
+  isInitialized = true;
+
+  // Create grid and start animation
+  createGrid();
+  requestAnimationFrame(animate);
+}
+
+// Module is initialized by calling initRubiks() from the consuming page
+
+/**
+ * Create a mini Rubik's cube visualization for embedding in small containers
+ * @param {HTMLElement} containerElement - Container element for the cube
+ * @param {Object} options - Configuration options
+ * @param {string} options.mode - 'scrambled' | 'animating' | 'solved'
+ * @param {string} options.colorScheme - Color scheme name (default: 'classic')
+ * @returns {Object} - Control object with destroy() method
+ */
+export function createMiniCube(containerElement, options = {}) {
+  const { mode = 'animating', colorScheme = 'classic' } = options;
+
+  if (!containerElement) {
+    console.error('createMiniCube: containerElement is required');
+    return null;
+  }
+
+  // Local state for this instance
+  let localScene, localCamera, localRenderer;
+  let miniCube;
+  let animationId;
+  let isDestroyed = false;
+
+  const colors = COLOR_SCHEMES[colorScheme] || COLOR_SCHEMES.classic;
+
+  // Get container dimensions
+  const getSize = () => ({
+    width: containerElement.clientWidth,
+    height: containerElement.clientHeight
+  });
+
+  // Create geometry and materials for this cube (not shared with main grid)
+  const createLocalMaterials = (x, y, z) => {
+    return [
+      new THREE.MeshBasicMaterial({ color: x === 2 ? colors.right : colors.internal }),
+      new THREE.MeshBasicMaterial({ color: x === 0 ? colors.left : colors.internal }),
+      new THREE.MeshBasicMaterial({ color: y === 2 ? colors.top : colors.internal }),
+      new THREE.MeshBasicMaterial({ color: y === 0 ? colors.bottom : colors.internal }),
+      new THREE.MeshBasicMaterial({ color: z === 2 ? colors.front : colors.internal }),
+      new THREE.MeshBasicMaterial({ color: z === 0 ? colors.back : colors.internal }),
+    ];
+  };
+
+  // Simplified RubiksCube class for mini cube
+  class MiniRubiksCube {
+    constructor(size = 1) {
+      this.size = size;
+      this.group = new THREE.Group();
+      this.cubeSize = size / 3;
+      this.cubies = [];
+
+      // Animation state
+      this.isAnimating = false;
+      this.animProgress = 0;
+      this.animDuration = 400;
+      this.animStartTime = null;
+      this.animAxis = null;
+      this.animLayer = null;
+      this.animDir = 1;
+      this.animTurnAmount = 1;
+      this.animatingCubies = [];
+      this.animPivot = new THREE.Group();
+
+      // Timing
+      this.delay = 600 + Math.random() * 400;
+      this.lastMoveTime = performance.now();
+      this.lastMove = null;
+
+      this.createCubies();
+
+      // Isometric view
+      this.group.rotation.x = Math.PI / 6;
+      this.group.rotation.y = -Math.PI / 4;
+
+      // Apply initial state based on mode
+      if (mode === 'scrambled') {
+        this.scramble(15);
+      } else if (mode === 'solved') {
+        // Already solved, no action needed
+      }
+      // 'animating' mode will start moves automatically
+    }
+
+    createCubies() {
+      const gap = 0.04 * this.size;
+      const actualSize = this.cubeSize - gap;
+      const geom = new THREE.BoxGeometry(actualSize, actualSize, actualSize);
+
+      for (let x = 0; x < 3; x++) {
+        for (let y = 0; y < 3; y++) {
+          for (let z = 0; z < 3; z++) {
+            const materials = createLocalMaterials(x, y, z);
+            const mesh = new THREE.Mesh(geom, materials);
+            mesh.position.set(
+              (x - 1) * this.cubeSize,
+              (y - 1) * this.cubeSize,
+              (z - 1) * this.cubeSize
+            );
+            this.cubies.push({ mesh, gridPos: { x, y, z } });
+            this.group.add(mesh);
+          }
+        }
+      }
+    }
+
+    scramble(moves) {
+      // Apply random moves instantly (no animation) to scramble
+      const axes = ['x', 'y', 'z'];
+      const layers = [0, 2];
+
+      for (let i = 0; i < moves; i++) {
+        const axis = axes[Math.floor(Math.random() * 3)];
+        const layer = layers[Math.floor(Math.random() * 2)];
+        const dir = Math.random() < 0.5 ? 1 : -1;
+        this.applyMoveInstant(axis, layer, dir);
+      }
+    }
+
+    applyMoveInstant(axis, layer, dir) {
+      const cubies = this.getCubiesInLayer(axis, layer);
+      const angle = (Math.PI / 2) * dir;
+
+      cubies.forEach(cubie => {
+        // Rotate position
+        const pos = cubie.mesh.position.clone();
+        if (axis === 'x') {
+          const y = pos.y * Math.cos(angle) - pos.z * Math.sin(angle);
+          const z = pos.y * Math.sin(angle) + pos.z * Math.cos(angle);
+          cubie.mesh.position.set(pos.x, y, z);
+        } else if (axis === 'y') {
+          const x = pos.x * Math.cos(angle) + pos.z * Math.sin(angle);
+          const z = -pos.x * Math.sin(angle) + pos.z * Math.cos(angle);
+          cubie.mesh.position.set(x, pos.y, z);
+        } else {
+          const x = pos.x * Math.cos(angle) - pos.y * Math.sin(angle);
+          const y = pos.x * Math.sin(angle) + pos.y * Math.cos(angle);
+          cubie.mesh.position.set(x, y, pos.z);
+        }
+
+        // Snap to grid
+        cubie.mesh.position.x = Math.round(cubie.mesh.position.x / this.cubeSize) * this.cubeSize;
+        cubie.mesh.position.y = Math.round(cubie.mesh.position.y / this.cubeSize) * this.cubeSize;
+        cubie.mesh.position.z = Math.round(cubie.mesh.position.z / this.cubeSize) * this.cubeSize;
+
+        // Rotate mesh orientation
+        const rotQuat = new THREE.Quaternion();
+        if (axis === 'x') rotQuat.setFromAxisAngle(new THREE.Vector3(1, 0, 0), angle);
+        else if (axis === 'y') rotQuat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+        else rotQuat.setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle);
+        cubie.mesh.quaternion.premultiply(rotQuat);
+      });
+    }
+
+    getCubiesInLayer(axis, layer) {
+      return this.cubies.filter(cubie => {
+        const pos = cubie.mesh.position;
+        const gx = Math.round(pos.x / this.cubeSize) + 1;
+        const gy = Math.round(pos.y / this.cubeSize) + 1;
+        const gz = Math.round(pos.z / this.cubeSize) + 1;
+        if (axis === 'x') return gx === layer;
+        if (axis === 'y') return gy === layer;
+        return gz === layer;
+      });
+    }
+
+    startMove(axis, layer, dir, turnAmount = 1) {
+      if (this.isAnimating) return;
+
+      this.isAnimating = true;
+      this.animProgress = 0;
+      this.animStartTime = null;
+      this.animAxis = axis;
+      this.animLayer = layer;
+      this.animDir = dir;
+      this.animTurnAmount = turnAmount;
+      this.currentAnimDuration = this.animDuration * (turnAmount === 2 ? 1.4 : 1);
+
+      this.animatingCubies = this.getCubiesInLayer(axis, layer);
+      this.animPivot.position.set(0, 0, 0);
+      this.animPivot.rotation.set(0, 0, 0);
+      this.group.add(this.animPivot);
+
+      this.animatingCubies.forEach(cubie => {
+        const worldPos = new THREE.Vector3();
+        cubie.mesh.getWorldPosition(worldPos);
+        this.group.remove(cubie.mesh);
+        this.animPivot.add(cubie.mesh);
+        this.animPivot.worldToLocal(worldPos);
+        cubie.mesh.position.copy(worldPos);
+      });
+    }
+
+    easeFingerFlick(t) {
+      if (t < 0.3) return 2.5 * t * t;
+      const t2 = (t - 0.3) / 0.7;
+      return 0.225 + 0.775 * (1 - Math.pow(1 - t2, 3));
+    }
+
+    update(currentTime) {
+      if (mode !== 'animating') return;
+
+      if (this.isAnimating) {
+        if (!this.animStartTime) this.animStartTime = currentTime;
+
+        const elapsed = currentTime - this.animStartTime;
+        this.animProgress = Math.min(elapsed / this.currentAnimDuration, 1);
+
+        if (this.animProgress >= 1) {
+          this.finishMove();
+        } else {
+          const eased = this.easeFingerFlick(this.animProgress);
+          const angle = (Math.PI / 2) * this.animTurnAmount * eased * this.animDir;
+
+          if (this.animAxis === 'x') this.animPivot.rotation.set(angle, 0, 0);
+          else if (this.animAxis === 'y') this.animPivot.rotation.set(0, angle, 0);
+          else this.animPivot.rotation.set(0, 0, angle);
+        }
+      } else {
+        if (currentTime - this.lastMoveTime > this.delay) {
+          this.lastMoveTime = currentTime;
+          this.delay = 500 + Math.random() * 500;
+          this.randomMove();
+        }
+      }
+    }
+
+    finishMove() {
+      const finalAngle = (Math.PI / 2) * this.animTurnAmount * this.animDir;
+      if (this.animAxis === 'x') this.animPivot.rotation.set(finalAngle, 0, 0);
+      else if (this.animAxis === 'y') this.animPivot.rotation.set(0, finalAngle, 0);
+      else this.animPivot.rotation.set(0, 0, finalAngle);
+
+      this.animatingCubies.forEach(cubie => {
+        const worldPos = new THREE.Vector3();
+        const worldQuat = new THREE.Quaternion();
+        cubie.mesh.getWorldPosition(worldPos);
+        cubie.mesh.getWorldQuaternion(worldQuat);
+
+        this.animPivot.remove(cubie.mesh);
+        this.group.add(cubie.mesh);
+        this.group.worldToLocal(worldPos);
+
+        worldPos.x = Math.round(worldPos.x / this.cubeSize) * this.cubeSize;
+        worldPos.y = Math.round(worldPos.y / this.cubeSize) * this.cubeSize;
+        worldPos.z = Math.round(worldPos.z / this.cubeSize) * this.cubeSize;
+
+        cubie.mesh.position.copy(worldPos);
+
+        const groupQuat = new THREE.Quaternion();
+        this.group.getWorldQuaternion(groupQuat);
+        const localQuat = groupQuat.invert().multiply(worldQuat);
+        cubie.mesh.quaternion.copy(localQuat);
+      });
+
+      this.group.remove(this.animPivot);
+      this.animPivot.rotation.set(0, 0, 0);
+      this.isAnimating = false;
+      this.animatingCubies = [];
+    }
+
+    randomMove() {
+      const axes = ['x', 'y', 'z'];
+      const layers = [0, 2];
+      let axis, layer, dir, turnAmount;
+      let attempts = 0;
+
+      do {
+        axis = axes[Math.floor(Math.random() * 3)];
+        layer = layers[Math.floor(Math.random() * 2)];
+        dir = Math.random() < 0.5 ? 1 : -1;
+        turnAmount = Math.random() < 0.25 ? 2 : 1;
+        attempts++;
+      } while (this.isRedundantMove(axis, layer, dir) && attempts < 10);
+
+      this.lastMove = { axis, layer, dir, turnAmount };
+      this.startMove(axis, layer, dir, turnAmount);
+    }
+
+    isRedundantMove(axis, layer, dir) {
+      if (!this.lastMove) return false;
+      const last = this.lastMove;
+      if (last.axis === axis && last.layer === layer) {
+        if (last.dir === dir) return true;
+        if (last.dir === -dir && last.turnAmount === 1) return true;
+      }
+      return false;
+    }
+  }
+
+  // Initialize scene
+  const size = getSize();
+  const frustumSize = 3.2; // Increased to fit isometric cube with headroom
+  const aspect = size.width / size.height;
+
+  localScene = new THREE.Scene();
+  localScene.background = null; // Transparent background
+
+  localCamera = new THREE.OrthographicCamera(
+    -frustumSize * aspect / 2,
+    frustumSize * aspect / 2,
+    frustumSize / 2,
+    -frustumSize / 2,
+    0.1,
+    100
+  );
+  localCamera.position.set(0, 0, 10);
+  localCamera.lookAt(0, 0, 0);
+
+  localRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  localRenderer.setSize(size.width, size.height);
+  localRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  localRenderer.setClearColor(0x000000, 0);
+
+  containerElement.appendChild(localRenderer.domElement);
+
+  // Create the mini cube
+  miniCube = new MiniRubiksCube(1.8);
+  localScene.add(miniCube.group);
+
+  // Handle resize
+  const onResize = () => {
+    if (isDestroyed) return;
+    const newSize = getSize();
+    const newAspect = newSize.width / newSize.height;
+    localCamera.left = -frustumSize * newAspect / 2;
+    localCamera.right = frustumSize * newAspect / 2;
+    localCamera.updateProjectionMatrix();
+    localRenderer.setSize(newSize.width, newSize.height);
+  };
+
+  const resizeObserver = new ResizeObserver(onResize);
+  resizeObserver.observe(containerElement);
+
+  // Animation loop
+  const animate = (currentTime) => {
+    if (isDestroyed) return;
+    animationId = requestAnimationFrame(animate);
+    miniCube.update(currentTime);
+    localRenderer.render(localScene, localCamera);
+  };
+
+  animationId = requestAnimationFrame(animate);
+
+  // Return control object
+  return {
+    destroy: () => {
+      isDestroyed = true;
+      if (animationId) cancelAnimationFrame(animationId);
+      resizeObserver.disconnect();
+      localRenderer.dispose();
+      if (containerElement.contains(localRenderer.domElement)) {
+        containerElement.removeChild(localRenderer.domElement);
+      }
+    }
+  };
+}

@@ -56,6 +56,46 @@
       height: 16px;
     }
 
+    /* Demo site button */
+    .demo-btn {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, rgba(0, 212, 170, 0.2), rgba(0, 168, 255, 0.2));
+      border: 1px solid rgba(0, 212, 170, 0.3);
+      border-radius: 10px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: #fff;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    .demo-btn:hover {
+      background: linear-gradient(135deg, rgba(0, 212, 170, 0.3), rgba(0, 168, 255, 0.3));
+      border-color: rgba(0, 212, 170, 0.5);
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 212, 170, 0.2);
+    }
+
+    .demo-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .demo-btn.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
     /* Controller Panel - Vercel-inspired design */
     .controller {
       position: fixed;
@@ -495,6 +535,16 @@
     <span>Demos</span>
   </a>
 
+  <!-- Demo Site Button -->
+  <a href="demo.html" target="_blank" class="demo-btn" id="demo-btn">
+    <span>View Demo Site</span>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+      <polyline points="15 3 21 3 21 9"></polyline>
+      <line x1="10" y1="14" x2="21" y2="3"></line>
+    </svg>
+  </a>
+
   <!-- Controller Widget -->
   <div class="controller" id="controller">
     <div class="controller-panel">
@@ -594,6 +644,26 @@
           </div>
         </div>
 
+        <!-- Loop Mode Toggle -->
+        <div class="control-group">
+          <div class="control-label">
+            <span class="control-label-text">Loop</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="loop-toggle">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Loop Duration -->
+        <div class="control-group" id="loop-duration-group" style="display: none;">
+          <div class="control-label">
+            <span class="control-label-text">Loop Duration</span>
+            <span class="control-value" id="loop-duration-value">6s</span>
+          </div>
+          <input type="range" class="control-slider" id="loop-duration-slider" min="2" max="30" step="1" value="6">
+        </div>
+
         <!-- Color Scheme -->
         <div class="control-group">
           <div class="control-label">
@@ -663,7 +733,10 @@
       }
     }
   </script>
-  <script src="sketch.js" type="module"></script>
+  <script type="module">
+    import { initRubiks } from './sketch.js';
+    initRubiks(); // Full-page mode
+  </script>
 
   <script>
     // Check for embed/preview mode via URL parameter
@@ -674,6 +747,7 @@
     const controller = document.getElementById('controller');
     const toggle = document.getElementById('controller-toggle');
     const backBtn = document.getElementById('back-btn');
+    const demoBtn = document.getElementById('demo-btn');
 
     const hideBtn = document.getElementById('hide-btn');
     const hideUiBtn = document.getElementById('hide-ui-btn');
@@ -682,6 +756,7 @@
     if (isEmbedMode) {
       controller.classList.add('hidden');
       backBtn.classList.add('hidden');
+      demoBtn.classList.add('hidden');
     }
 
     toggle.addEventListener('click', () => {
@@ -697,6 +772,7 @@
       controller.classList.remove('open');
       controller.classList.add('hidden');
       backBtn.classList.add('hidden');
+      demoBtn.classList.add('hidden');
     });
 
     document.addEventListener('keydown', (e) => {
@@ -709,6 +785,7 @@
       if (key === 'h') {
         controller.classList.toggle('hidden');
         backBtn.classList.toggle('hidden');
+        demoBtn.classList.toggle('hidden');
       }
 
       // Space - Toggle pause/play
@@ -735,6 +812,19 @@
         setPlaybackState('stop');
         window.dispatchEvent(new CustomEvent('rubiks-settings', {
           detail: { type: 'solve' }
+        }));
+      }
+
+      // L - Toggle loop mode
+      if (key === 'l') {
+        loopToggle.checked = !loopToggle.checked;
+        loopDurationGroup.style.display = loopToggle.checked ? 'block' : 'none';
+        if (loopToggle.checked) {
+          hoverToggle.checked = false;
+          setPlaybackState('play');
+        }
+        window.dispatchEvent(new CustomEvent('rubiks-settings', {
+          detail: { type: 'loop', value: loopToggle.checked }
         }));
       }
 
@@ -790,7 +880,16 @@
       stopBtn.classList.toggle('active', state === 'stop');
     }
 
+    function disableLoop() {
+      loopToggle.checked = false;
+      loopDurationGroup.style.display = 'none';
+      window.dispatchEvent(new CustomEvent('rubiks-settings', {
+        detail: { type: 'loop', value: false }
+      }));
+    }
+
     playBtn.addEventListener('click', () => {
+      disableLoop();
       setPlaybackState('play');
       // Disable hover mode when playing
       hoverToggle.checked = false;
@@ -800,6 +899,7 @@
     });
 
     pauseBtn.addEventListener('click', () => {
+      disableLoop();
       setPlaybackState('pause');
       window.dispatchEvent(new CustomEvent('rubiks-settings', {
         detail: { type: 'playback', value: 'pause' }
@@ -807,6 +907,7 @@
     });
 
     stopBtn.addEventListener('click', () => {
+      disableLoop();
       setPlaybackState('stop');
       window.dispatchEvent(new CustomEvent('rubiks-settings', {
         detail: { type: 'playback', value: 'stop' }
@@ -816,6 +917,7 @@
     // Solve button
     const solveBtn = document.getElementById('solve-btn');
     solveBtn.addEventListener('click', () => {
+      disableLoop();
       // Set playback to stop so cubes stay solved
       setPlaybackState('stop');
       window.dispatchEvent(new CustomEvent('rubiks-settings', {
@@ -869,6 +971,33 @@
     colorScheme.addEventListener('change', () => {
       window.dispatchEvent(new CustomEvent('rubiks-settings', {
         detail: { type: 'colorScheme', value: colorScheme.value }
+      }));
+    });
+
+    // Loop mode
+    const loopToggle = document.getElementById('loop-toggle');
+    const loopDurationGroup = document.getElementById('loop-duration-group');
+    const loopDurationSlider = document.getElementById('loop-duration-slider');
+    const loopDurationValue = document.getElementById('loop-duration-value');
+
+    loopToggle.addEventListener('change', () => {
+      const enabled = loopToggle.checked;
+      loopDurationGroup.style.display = enabled ? 'block' : 'none';
+      if (enabled) {
+        // Disable hover mode and set play state
+        hoverToggle.checked = false;
+        setPlaybackState('play');
+      }
+      window.dispatchEvent(new CustomEvent('rubiks-settings', {
+        detail: { type: 'loop', value: enabled }
+      }));
+    });
+
+    loopDurationSlider.addEventListener('input', () => {
+      const seconds = parseInt(loopDurationSlider.value);
+      loopDurationValue.textContent = seconds + 's';
+      window.dispatchEvent(new CustomEvent('rubiks-settings', {
+        detail: { type: 'loopDuration', value: seconds * 1000 }
       }));
     });
 
