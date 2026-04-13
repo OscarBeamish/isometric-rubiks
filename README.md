@@ -2,9 +2,7 @@
 
 An interactive visualisation of a grid of Rubik's cubes in isometric projection. Watch as layers rotate with satisfying animations, creating a mesmerising pattern.
 
-**[View Live Demo](https://rubiks.oscarbeamish.com/)**
-
-![Demo](./demo.gif)
+**[View Live Demo](#)**
 
 ## Tech Stack
 
@@ -43,7 +41,7 @@ Open the URL shown in your terminal.
 ## Controls
 
 | Control | Action |
-|---------|--------|
+|---|---|
 | Settings gear | Open settings panel |
 | `H` key | Toggle UI visibility |
 | Play/Pause/Stop | Control animation playback |
@@ -77,7 +75,7 @@ npx vite build
 
 ## Inspiration
 
-Inspired by [this Reddit post](https://www.reddit.com/r/creativecoding/comments/1r78hw2/procedurally_generated_rubiks_cube_pattern/) on r/creativecoding.
+Inspired by a post from [u/Positive_Tea_1166](https://www.reddit.com/user/Positive_Tea_1166) on [r/creativecoding](https://www.reddit.com/r/creativecoding/). Saw it and thought it'd be a fun challenge to recreate in Three.js. Cheers to them for the idea and to the r/creativecoding community for the constant inspiration.
 
 ## License
 
@@ -85,4 +83,4 @@ MIT
 
 ---
 
-Built by [Oscar Beamish](https://oscarbeamish.com)
+Built by [Oscar Beamish](https://oscarbeamish.dev)
