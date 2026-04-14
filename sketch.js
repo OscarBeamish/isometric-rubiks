@@ -642,8 +642,7 @@ class RubiksCube {
   // --- Loop mode ---
 
   // Pre-compute a palindrome move sequence for seamless looping.
-  // First half = random moves, second half = reverse order + reversed direction.
-  // Bridge moves inserted at seam points to hide the turnaround.
+  // First half = random moves, second half = exact reverse to return to start.
   precomputeLoopSequence(moveCount) {
     const axes = ['x', 'y', 'z'];
     const outerLayers = [0, 2];
@@ -667,25 +666,13 @@ class RubiksCube {
       prev = move;
     }
 
-    // Build reverse half
+    // Build reverse half — exact inverse of forward moves
     const reverse = forward.slice().reverse().map(m => ({
       axis: m.axis, layer: m.layer, dir: -m.dir, turnAmount: m.turnAmount
     }));
 
-    // Insert bridge move at the midpoint seam (between forward[-1] and reverse[0])
-    // The bridge uses a different axis than both neighbours
-    const lastForward = forward[forward.length - 1];
-    const firstReverse = reverse[0]; // same axis/layer as lastForward
-    const bridgeMid = this._makeBridgeMove(lastForward, firstReverse);
-
-    // Insert bridge at the loop-boundary seam (between reverse[-1] and forward[0])
-    const lastReverse = reverse[reverse.length - 1]; // same axis/layer as forward[0]
-    const firstForward = forward[0];
-    const bridgeEnd = this._makeBridgeMove(lastReverse, firstForward);
-
-    // Full sequence: forward + bridge + reverse + bridge
-    // When looped: ...bridgeEnd, forward[0], ..., forward[N-1], bridgeMid, reverse[0], ..., reverse[N-1], bridgeEnd, forward[0], ...
-    this.loopSequence = [...forward, bridgeMid, ...reverse, bridgeEnd];
+    // Full sequence: forward then reverse — guaranteed to return to start
+    this.loopSequence = [...forward, ...reverse];
     this.loopIndex = 0;
   }
 
@@ -696,25 +683,6 @@ class RubiksCube {
       if (a.dir === -b.dir && a.turnAmount === 1 && b.turnAmount === 1) return true;
     }
     return false;
-  }
-
-  // Create a bridge move that avoids the same axis/layer as its neighbours
-  _makeBridgeMove(before, after) {
-    const axes = ['x', 'y', 'z'];
-    const outerLayers = [0, 2];
-    let axis, layer, dir, turnAmount;
-    let attempts = 0;
-    do {
-      axis = axes[Math.floor(Math.random() * 3)];
-      layer = outerLayers[Math.floor(Math.random() * 2)];
-      dir = Math.random() < 0.5 ? 1 : -1;
-      turnAmount = Math.random() < 0.25 ? 2 : 1;
-      attempts++;
-    } while (attempts < 20 && (
-      (before && before.axis === axis && before.layer === layer) ||
-      (after && after.axis === axis && after.layer === layer)
-    ));
-    return { axis, layer, dir, turnAmount };
   }
 
   // Play next move from the loop sequence
@@ -735,7 +703,7 @@ let settings = {
   speed: 1,           // Animation speed (slider value, scaled internally by 0.4)
   delay: 0,           // Delay between moves in ms (slider value)
   gridSize: 10,       // Number of rows/cols
-  sync: true,         // Whether all cubes move at the same time
+  sync: false,        // Whether all cubes move at the same time
   playback: 'play',   // 'play', 'pause', or 'stop'
   colorScheme: 'classic',
   hoverMode: false,   // Whether cubes rotate on hover
@@ -1157,13 +1125,11 @@ function animate(currentTime) {
   }
 
   // Loop mode logic — cubes play from pre-computed palindrome sequences
-  // The normal sync/independent move logic is skipped; loop drives moves directly
-  if (settings.loop) {
+  if (settings.loop && settings.playback !== 'pause') {
     if (settings.sync) {
       // Sync: all cubes move together
       const allDone = cubes.every(c => !c.isAnimating && !c.isSolving);
-      if (allDone && settings.playback !== 'pause') {
-        // Check delay
+      if (allDone) {
         if (loopStartTime < 0) loopStartTime = currentTime;
         if (currentTime >= loopStartTime) {
           cubes.forEach(c => c.playNextLoopMove());
@@ -1177,15 +1143,15 @@ function animate(currentTime) {
         }
       }
     } else {
-      // Independent: each cube has its own timing
+      // Independent: each cube loops through its own palindrome at its own pace
       cubes.forEach(c => {
-        if (!c.isAnimating && !c.isSolving && settings.playback !== 'pause') {
-          const baseDelay = settings.delay;
-          const variation = baseDelay * 0.3;
-          if (currentTime - c.lastMoveTime > c.delay) {
-            c.lastMoveTime = currentTime;
-            c.delay = baseDelay + (Math.random() - 0.5) * 2 * variation;
+        if (!c.isAnimating && !c.isSolving) {
+          if (currentTime - c.lastMoveTime >= c.delay) {
             c.playNextLoopMove();
+            c.lastMoveTime = currentTime;
+            const baseDelay = settings.delay;
+            const variation = baseDelay * 0.3;
+            c.delay = baseDelay + (Math.random() - 0.5) * 2 * variation;
           }
         }
       });

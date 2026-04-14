@@ -1,0 +1,1352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rubikon - Strategic Design Studio</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Placeholder font - will be updated based on user choice -->
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Colours derived from Rubik's cube classic scheme */
+      --cube-red: #C41E3A;
+      --cube-orange: #FF5800;
+      --cube-yellow: #FFD500;
+      --cube-blue: #0051BA;
+      --cube-green: #009E60;
+      --cube-white: #FFFFFF;
+
+      /* UI colours */
+      --bg-primary: #0a0a0a;
+      --bg-secondary: #111111;
+      --bg-tertiary: #1a1a1a;
+      --text-primary: #ffffff;
+      --text-secondary: rgba(255, 255, 255, 0.7);
+      --text-muted: rgba(255, 255, 255, 0.4);
+
+      /* Accent - using cube blue as primary accent */
+      --accent: #0051BA;
+      --accent-light: #2d7aed;
+
+      /* Spacing scale */
+      --space-xs: 4px;
+      --space-sm: 8px;
+      --space-md: 16px;
+      --space-lg: 24px;
+      --space-xl: 48px;
+      --space-2xl: 96px;
+
+      /* Border radius hierarchy (intentional, not random) */
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      /* Always reserve space for scrollbar to prevent layout shift during loading */
+      overflow-y: scroll;
+      scrollbar-gutter: stable;
+    }
+
+    body {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #ffffff;
+      color: var(--text-primary);
+      overflow-x: hidden;
+      line-height: 1.6;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ================================
+       CUSTOM SCROLLBAR
+    ================================ */
+
+    /* Webkit browsers (Chrome, Safari, Edge) */
+    ::-webkit-scrollbar {
+      width: 10px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg-primary);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--bg-tertiary);
+      border-radius: 5px;
+      border: 2px solid var(--bg-primary);
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Firefox */
+    html {
+      scrollbar-width: thin;
+      scrollbar-color: var(--bg-tertiary) var(--bg-primary);
+    }
+
+    /* ================================
+       LOADING ANIMATION
+    ================================ */
+
+    /* Prevent scroll during loading - use fixed positioning to prevent content jump */
+    body.loading {
+      overflow: hidden;
+      position: fixed;
+      width: 100%;
+      top: 0;
+      left: 0;
+    }
+
+    /* Hero starts small and centered - actual square */
+    .hero-wrapper.loading .hero {
+      /* Create a smaller square by clipping more from sides */
+      clip-path: inset(35% 42% 35% 42% round 24px);
+    }
+
+    /* Smooth expansion animation - no jump at start */
+    .hero-wrapper .hero {
+      clip-path: inset(0% 0% 0% 0% round 24px);
+      transition: clip-path 1.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Hide elements initially */
+    .hero-wrapper.loading .nav-wrapper,
+    .hero-wrapper.loading .hero-content,
+    .hero-wrapper.loading .scroll-hint {
+      opacity: 0;
+    }
+
+    /* Staggered reveal for nav */
+    .nav-wrapper {
+      opacity: 1;
+      transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      transition-delay: 1.2s;
+    }
+
+    /* Staggered reveal for hero content */
+    .hero-content {
+      opacity: 1;
+      transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      transition-delay: 1.4s;
+    }
+
+    /* Individual element animations within hero content (excluding h1 which has character animation) */
+    .hero-content-inner > *:not(h1) {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Description */
+    .hero-wrapper.loaded .hero-content-inner > *:nth-child(2) {
+      opacity: 1;
+      transform: translateY(0);
+      transition-delay: 2.2s;
+    }
+
+    /* Actions */
+    .hero-wrapper.loaded .hero-content-inner > *:nth-child(3) {
+      opacity: 1;
+      transform: translateY(0);
+      transition-delay: 2.35s;
+    }
+
+    /* Scroll hint reveal */
+    .scroll-hint {
+      opacity: 1;
+      transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      transition-delay: 2.5s;
+    }
+
+    /* Logo animation (header only) */
+    .nav .logo {
+      opacity: 0;
+      transform: translateY(-10px);
+      transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .hero-wrapper.loaded .nav .logo {
+      opacity: 1;
+      transform: translateY(0);
+      transition-delay: 1.4s;
+    }
+
+    /* Nav links stagger */
+    .nav-links a {
+      opacity: 0;
+      transform: translateY(-10px);
+      transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .hero-wrapper.loaded .nav-links a:nth-child(1) {
+      opacity: 1;
+      transform: translateY(0);
+      transition-delay: 1.5s;
+    }
+
+    .hero-wrapper.loaded .nav-links a:nth-child(2) {
+      opacity: 1;
+      transform: translateY(0);
+      transition-delay: 1.6s;
+    }
+
+    .hero-wrapper.loaded .nav-links a:nth-child(3) {
+      opacity: 1;
+      transform: translateY(0);
+      transition-delay: 1.7s;
+    }
+
+    .hero-wrapper.loaded .nav-links a:nth-child(4) {
+      opacity: 1;
+      transform: translateY(0);
+      transition-delay: 1.8s;
+    }
+
+    /* Override hover states for nav-link during animation */
+    .nav-link {
+      transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+                  color 0.2s ease !important;
+    }
+
+    /* ================================
+       LIGHT MODE (Triggered by View our work click)
+    ================================ */
+
+    /* Base transitions (for animating both directions) */
+    .hero-wrapper,
+    .main-content,
+    .section.dark,
+    .section-title,
+    .card-title,
+    .step-title,
+    .card-description,
+    .step-description,
+    .step-number,
+    .bento-card {
+      transition: background 0.6s ease, color 0.6s ease, border-color 0.6s ease;
+    }
+
+    /* Disable transitions on initial load */
+    body.no-transition,
+    body.no-transition * {
+      transition: none !important;
+    }
+
+    body.light-mode .hero-wrapper {
+      background: #ffffff;
+    }
+
+    body.light-mode .main-content {
+      background: #ffffff;
+    }
+
+    body.light-mode .section.dark {
+      background: #f5f5f5;
+    }
+
+    /* Light mode text colours */
+    body.light-mode .section-title,
+    body.light-mode .section.dark .section-title,
+    body.light-mode .card-title,
+    body.light-mode .step-title {
+      color: var(--bg-primary);
+    }
+
+    body.light-mode .section-eyebrow {
+      color: var(--cube-red);
+    }
+
+    body.light-mode .card-description,
+    body.light-mode .step-description {
+      color: rgba(0, 0, 0, 0.6);
+    }
+
+    body.light-mode .step-number {
+      color: rgba(0, 0, 0, 0.4);
+    }
+
+    body.light-mode .bento-card {
+      background: #f0f0f0;
+      border-color: rgba(0, 0, 0, 0.08);
+    }
+
+    body.light-mode .bento-card.featured {
+      background: linear-gradient(135deg, #f0f0f0 0%, rgba(196, 30, 58, 0.1) 100%);
+    }
+
+    body.light-mode .bento-card:hover {
+      border-color: rgba(0, 0, 0, 0.15);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+    }
+
+    body.light-mode .card-tag {
+      background: rgba(0, 0, 0, 0.06);
+      color: rgba(0, 0, 0, 0.5);
+    }
+
+    body.light-mode .process-step {
+      border-left-color: rgba(0, 0, 0, 0.1);
+    }
+
+    body.light-mode .process-step:first-child {
+      border-left-color: var(--cube-red);
+    }
+
+    /* Footer stays dark */
+    body.light-mode .footer-wrapper {
+      background: var(--bg-primary);
+    }
+
+    /* Nav stays light (inside dark hero) - no changes needed */
+
+    /* Hero text and overlay stay dark in light mode */
+
+    /* Scroll hint stays light (inside dark hero) */
+
+    body.light-mode .btn-secondary {
+      background: rgba(0, 0, 0, 0.06);
+      border-color: rgba(0, 0, 0, 0.15);
+      color: var(--bg-primary);
+    }
+
+    body.light-mode .btn-secondary:hover {
+      background: rgba(0, 0, 0, 0.1);
+      border-color: rgba(0, 0, 0, 0.2);
+    }
+
+    /* ================================
+       HERO WRAPPER (Dark background with inset container)
+    ================================ */
+    .hero-wrapper {
+      background: var(--bg-primary);
+      padding: var(--space-md);
+      min-height: 100vh;
+    }
+
+    /* ================================
+       HERO SECTION (Curved container)
+    ================================ */
+    .hero {
+      position: relative;
+      min-height: calc(100vh - var(--space-md) * 2);
+      border-radius: 24px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .hero-bg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      border-radius: 24px; /* Match hero container */
+      overflow: hidden;
+    }
+
+    .hero-bg canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    .hero-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      /* Gradient heavy on left for text readability, fades to show animation */
+      background:
+        linear-gradient(90deg, rgba(10, 10, 10, 0.98) 0%, rgba(10, 10, 10, 0.95) 25%, rgba(10, 10, 10, 0.85) 40%, rgba(10, 10, 10, 0.5) 60%, transparent 80%);
+      z-index: 1;
+      pointer-events: none;
+      border-radius: 24px; /* Match hero container */
+    }
+
+    /* Mobile: heavier overlay since text spans full width */
+    @media (max-width: 768px) {
+      .hero-overlay {
+        background:
+          linear-gradient(180deg, rgba(10, 10, 10, 0.9) 0%, rgba(10, 10, 10, 0.7) 50%, rgba(10, 10, 10, 0.4) 80%, transparent 100%);
+        border-radius: 16px; /* Match mobile hero container */
+      }
+
+      .hero-bg {
+        border-radius: 16px; /* Match mobile hero container */
+      }
+    }
+
+    /* ================================
+       NAVIGATION
+    ================================ */
+    .nav-wrapper {
+      position: relative;
+      z-index: 100;
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.2) 60%, transparent 100%);
+    }
+
+    .nav {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-lg) var(--space-xl);
+      max-width: 1400px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+
+    /* Isometric Rubik's cube logo */
+    .logo-cube {
+      width: 36px;
+      height: 36px;
+      flex-shrink: 0;
+    }
+
+    .logo-text {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 1.5rem;
+      font-weight: 400;
+      letter-spacing: -0.02em;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: var(--space-xl);
+    }
+
+    .nav-link {
+      color: #ffffff;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s ease;
+      position: relative;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .nav-link::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 0;
+      width: 0;
+      height: 2px;
+      background: var(--cube-red);
+      transition: width 0.2s ease;
+    }
+
+    .nav-link:hover {
+      color: var(--text-primary);
+    }
+
+    .nav-link:hover::after {
+      width: 100%;
+    }
+
+    .nav-cta {
+      padding: 10px 20px;
+      background: var(--text-primary);
+      color: var(--bg-primary);
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+
+    .nav-cta:hover {
+      opacity: 0.9;
+    }
+
+    /* Theme toggle button */
+    .theme-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .theme-toggle:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .theme-icon {
+      width: 18px;
+      height: 18px;
+      color: var(--text-primary);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    .theme-icon.sun {
+      display: block;
+    }
+
+    .theme-icon.moon {
+      display: none;
+    }
+
+    /* Theme toggle stays light (inside dark hero) - keep default styling */
+
+    body.light-mode .theme-icon.sun {
+      display: none;
+    }
+
+    body.light-mode .theme-icon.moon {
+      display: block;
+    }
+
+    /* ================================
+       HERO CONTENT
+    ================================ */
+    .hero-content {
+      position: relative;
+      z-index: 10;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      /* Match nav padding and max-width so text aligns with logo */
+      padding: 0 var(--space-xl);
+      max-width: 1400px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .hero-content-inner {
+      max-width: 720px;
+    }
+
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-lg);
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .hero-eyebrow-line {
+      width: 32px;
+      height: 1px;
+      background: var(--cube-red);
+    }
+
+    .hero-title {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: clamp(3rem, 8vw, 5.5rem);
+      font-weight: 400;
+      line-height: 1;
+      margin-bottom: var(--space-lg);
+      letter-spacing: -0.02em;
+    }
+
+    /* Masked line animation - overflow hidden reveals text sliding up */
+    .hero-title .title-line {
+      display: block;
+      overflow: hidden;
+      padding-bottom: 0.1em; /* Prevent descender clipping */
+    }
+
+    .hero-title .title-text {
+      display: block;
+      transform: translateY(110%);
+      transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Staggered reveal - line 1 then line 2 */
+    .hero-wrapper.loaded .hero-title .title-line:first-child .title-text {
+      transform: translateY(0);
+      transition-delay: 1.6s;
+    }
+
+    .hero-wrapper.loaded .hero-title .title-line:last-child .title-text {
+      transform: translateY(0);
+      transition-delay: 1.85s;
+    }
+
+    .hero-title em {
+      font-style: italic;
+      color: var(--cube-red);
+      cursor: pointer;
+      transition: opacity 0.2s ease;
+    }
+
+    .hero-title em:hover {
+      opacity: 0.8;
+    }
+
+    .hero-description {
+      font-size: 1.125rem;
+      color: var(--text-secondary);
+      line-height: 1.7;
+      margin-bottom: var(--space-xl);
+      max-width: 480px;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: var(--space-md);
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: 14px 28px;
+      border-radius: var(--radius-md);
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn-primary {
+      background: var(--cube-red);
+      color: var(--text-primary);
+    }
+
+    .btn-primary:hover {
+      background: #a8182f;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: var(--text-primary);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    /* ================================
+       SCROLL INDICATOR
+    ================================ */
+    .scroll-hint {
+      position: absolute;
+      bottom: var(--space-xl);
+      left: var(--space-xl);
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      color: var(--text-muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .scroll-line {
+      width: 1px;
+      height: 48px;
+      background: linear-gradient(180deg, var(--text-muted) 0%, transparent 100%);
+      animation: scroll-pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes scroll-pulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+
+    /* ================================
+       MAIN CONTENT
+    ================================ */
+    .main-content {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+    }
+
+    /* ================================
+       WORK SECTION (Bento Grid)
+    ================================ */
+    .section {
+      padding: var(--space-2xl) var(--space-xl);
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .section-header {
+      margin-bottom: var(--space-xl);
+    }
+
+    .section-eyebrow {
+      display: block;
+      color: var(--cube-red);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: var(--space-md);
+    }
+
+    .section-title {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      max-width: 600px;
+      color: var(--text-primary);
+    }
+
+    /* Bento grid - intentional, modular layout */
+    .bento-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      grid-template-rows: auto;
+      gap: var(--space-md);
+    }
+
+    .bento-card {
+      background: var(--bg-secondary);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      transition: all 0.3s ease;
+      overflow: hidden;
+    }
+
+    .bento-card:hover {
+      border-color: rgba(255, 255, 255, 0.12);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Card sizes */
+    .bento-card.large {
+      grid-column: span 8;
+      padding: var(--space-xl);
+    }
+
+    .bento-card.medium {
+      grid-column: span 4;
+    }
+
+    .bento-card.wide {
+      grid-column: span 6;
+    }
+
+    .bento-card.full {
+      grid-column: span 12;
+    }
+
+    /* Featured card with colour accent */
+    .bento-card.featured {
+      background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(196, 30, 58, 0.15) 100%);
+      border-color: rgba(196, 30, 58, 0.3);
+    }
+
+    .card-number {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 3rem;
+      color: var(--cube-red);
+      line-height: 1;
+      margin-bottom: var(--space-md);
+    }
+
+    .card-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      margin-bottom: var(--space-sm);
+      color: var(--text-primary);
+    }
+
+    .card-description {
+      color: var(--text-secondary);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .card-tag {
+      display: inline-block;
+      padding: 4px 10px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: var(--space-md);
+    }
+
+    /* Colour swatches card */
+    .colour-swatches {
+      display: flex;
+      gap: var(--space-sm);
+      margin-top: var(--space-lg);
+    }
+
+    .swatch {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-sm);
+    }
+
+    .swatch-red { background: var(--cube-red); }
+    .swatch-orange { background: var(--cube-orange); }
+    .swatch-yellow { background: var(--cube-yellow); }
+    .swatch-blue { background: var(--cube-blue); }
+    .swatch-green { background: var(--cube-green); }
+    .swatch-white { background: var(--cube-white); }
+
+    /* ================================
+       PROCESS SECTION (Slightly lighter dark background)
+    ================================ */
+    .section.dark {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      margin: 0;
+      max-width: none;
+      padding: var(--space-2xl) var(--space-xl);
+    }
+
+    .section.dark .section-inner {
+      /* Match .section's effective content width: 1400px - (48px * 2) padding = 1304px */
+      max-width: calc(1400px - var(--space-xl) * 2);
+      margin: 0 auto;
+    }
+
+    .section.dark .section-title {
+      color: var(--text-primary);
+    }
+
+    .process-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-lg);
+    }
+
+    .process-step {
+      padding: var(--space-xl) var(--space-lg);
+      border-left: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .process-step:first-child {
+      border-left: 1px solid var(--cube-red);
+    }
+
+    .step-number {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 1rem;
+      color: var(--text-muted);
+      margin-bottom: var(--space-md);
+    }
+
+    .step-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: var(--space-sm);
+      color: var(--text-primary);
+    }
+
+    .step-description {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    /* Process step cube containers */
+    .step-cube-container {
+      width: 72px;
+      height: 90px;
+      margin-bottom: var(--space-md);
+    }
+
+    .step-cube-container canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* ================================
+       CTA SECTION (Red background)
+    ================================ */
+    .cta-section {
+      text-align: center;
+      padding: var(--space-2xl) var(--space-xl);
+      background: var(--cube-red);
+    }
+
+    .cta-title {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 400;
+      margin-bottom: var(--space-md);
+      letter-spacing: -0.02em;
+      color: #ffffff;
+    }
+
+    .cta-description {
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 1.125rem;
+      max-width: 500px;
+      margin: 0 auto var(--space-xl);
+    }
+
+    .cta-section .btn-primary {
+      background: #ffffff;
+      color: var(--cube-red);
+    }
+
+    .cta-section .btn-primary:hover {
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    /* ================================
+       FOOTER (Dark background)
+    ================================ */
+    .footer-wrapper {
+      background: var(--bg-primary);
+    }
+
+    .footer {
+      padding: var(--space-xl);
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: var(--space-lg);
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .footer-left {
+      display: flex;
+      align-items: center;
+      gap: var(--space-xl);
+    }
+
+    .footer-links {
+      display: flex;
+      gap: var(--space-lg);
+    }
+
+    .footer-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13px;
+      transition: color 0.2s ease;
+    }
+
+    .footer-link:hover {
+      color: var(--text-primary);
+    }
+
+    .footer-right {
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .footer-right a {
+      color: var(--cube-red);
+      text-decoration: none;
+    }
+
+    .footer-right a:hover {
+      text-decoration: underline;
+    }
+
+    .footer .logo-text {
+      color: var(--text-primary);
+    }
+
+    /* ================================
+       RESPONSIVE
+    ================================ */
+    @media (max-width: 1024px) {
+      .bento-card.large,
+      .bento-card.medium,
+      .bento-card.wide {
+        grid-column: span 6;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .hero-wrapper {
+        padding: var(--space-sm);
+      }
+
+      .hero {
+        min-height: calc(100vh - var(--space-sm) * 2);
+        border-radius: 16px;
+      }
+
+      .nav {
+        padding: var(--space-md);
+      }
+
+      .nav-links {
+        display: none;
+      }
+
+      .hero-content {
+        padding: 0 var(--space-md);
+      }
+
+      .section.dark {
+        padding: var(--space-xl) var(--space-md);
+      }
+
+      .section {
+        padding: var(--space-xl) var(--space-md);
+      }
+
+      .bento-card.large,
+      .bento-card.medium,
+      .bento-card.wide,
+      .bento-card.full {
+        grid-column: span 12;
+      }
+
+      .process-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .process-step {
+        border-left: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        padding: var(--space-lg) 0;
+      }
+
+      .process-step:first-child {
+        border-top: 1px solid var(--cube-red);
+        border-left: none;
+      }
+
+      .footer {
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .footer-left {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body class="loading">
+
+  <!-- Hero Wrapper -->
+  <div class="hero-wrapper loading">
+    <!-- Hero Section (curved container) -->
+    <section class="hero">
+      <!-- Rubik's cube visualization container -->
+      <div class="hero-bg" id="hero-bg"></div>
+
+      <!-- Gradient Overlay -->
+      <div class="hero-overlay"></div>
+
+      <!-- Navigation -->
+      <div class="nav-wrapper">
+        <nav class="nav">
+        <a href="#" class="logo">
+        <!-- Isometric Rubik's cube SVG logo -->
+        <svg class="logo-cube" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Top face (Yellow) -->
+          <path d="M18 2L6 9V10L18 17L30 10V9L18 2Z" fill="#FFD500"/>
+          <path d="M18 6L10 10.5V11L18 15.5L26 11V10.5L18 6Z" fill="#E6C000" fill-opacity="0.5"/>
+          <!-- Left face (Blue) -->
+          <path d="M6 9L6 25L18 32V17L6 9Z" fill="#0051BA"/>
+          <path d="M6 13L6 21L12 24.5V16.5L6 13Z" fill="#003d8a" fill-opacity="0.5"/>
+          <!-- Right face (Red) -->
+          <path d="M30 9V25L18 32V17L30 9Z" fill="#C41E3A"/>
+          <path d="M30 13V21L24 24.5V16.5L30 13Z" fill="#9a1830" fill-opacity="0.5"/>
+          <!-- Grid lines for cube effect -->
+          <path d="M14 4.5L14 14.5M22 4.5L22 14.5" stroke="#ffffff" stroke-width="0.5" stroke-opacity="0.3"/>
+          <path d="M10 7L26 7M10 11L26 11" stroke="#ffffff" stroke-width="0.5" stroke-opacity="0.3"/>
+        </svg>
+        <span class="logo-text">Rubikon</span>
+      </a>
+        <div class="nav-links">
+          <a href="#work" class="nav-link">Work</a>
+          <a href="#process" class="nav-link">Process</a>
+          <a href="#" class="nav-link">About</a>
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode">
+            <!-- Lucide Icons - Sun -->
+            <svg class="theme-icon sun" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="4"/>
+              <path d="M12 2v2"/>
+              <path d="M12 20v2"/>
+              <path d="m4.93 4.93 1.41 1.41"/>
+              <path d="m17.66 17.66 1.41 1.41"/>
+              <path d="M2 12h2"/>
+              <path d="M20 12h2"/>
+              <path d="m6.34 17.66-1.41 1.41"/>
+              <path d="m19.07 4.93-1.41 1.41"/>
+            </svg>
+            <!-- Lucide Icons - Moon -->
+            <svg class="theme-icon moon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+            </svg>
+          </button>
+          <a href="#" class="nav-cta">Start a project</a>
+        </div>
+      </nav>
+      </div>
+
+    <!-- Hero Content -->
+    <div class="hero-content">
+      <div class="hero-content-inner">
+        <h1 class="hero-title">
+          <span class="title-line"><span class="title-text">We build brands</span></span>
+          <span class="title-line"><span class="title-text">that <em id="move-trigger">move</em></span></span>
+        </h1>
+        <p class="hero-description">
+          A design studio for founders who understand that standing still means falling behind. We craft identities, websites, and digital experiences that evolve with your ambition.
+        </p>
+        <div class="hero-actions">
+          <a href="#work" class="btn btn-primary">View our work</a>
+          <a href="#process" class="btn btn-secondary">How we work</a>
+        </div>
+      </div>
+    </div>
+
+      <!-- Scroll indicator -->
+      <div class="scroll-hint">
+        <div class="scroll-line"></div>
+        <span>Scroll</span>
+      </div>
+    </section>
+  </div>
+
+  <!-- Main Content (dark background) -->
+  <div class="main-content">
+    <!-- Work Section -->
+    <section class="section" id="work">
+    <div class="section-header">
+      <span class="section-eyebrow">Selected work</span>
+      <h2 class="section-title">Projects that pushed boundaries and delivered results</h2>
+    </div>
+
+    <div class="bento-grid">
+      <div class="bento-card large featured">
+        <span class="card-tag">Brand Identity</span>
+        <div class="card-number">01</div>
+        <h3 class="card-title">Vertex Capital</h3>
+        <p class="card-description">Complete rebrand for a venture firm managing $2.4B in assets. New identity, website, and investor materials.</p>
+      </div>
+
+      <div class="bento-card medium">
+        <span class="card-tag">Web Design</span>
+        <div class="card-number">02</div>
+        <h3 class="card-title">Meridian Health</h3>
+        <p class="card-description">Patient-first healthcare platform serving 50k+ monthly users.</p>
+      </div>
+
+      <div class="bento-card wide">
+        <span class="card-tag">Digital Product</span>
+        <div class="card-number">03</div>
+        <h3 class="card-title">Flux Analytics</h3>
+        <p class="card-description">Dashboard redesign that reduced user onboarding time by 40%.</p>
+      </div>
+
+      <div class="bento-card wide">
+        <span class="card-tag">Brand System</span>
+        <div class="card-number">04</div>
+        <h3 class="card-title">Nomad Studio</h3>
+        <p class="card-description">Flexible identity system for a creative collective spanning 4 continents.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Process Section (Dark) -->
+  <section class="section dark" id="process">
+    <div class="section-inner">
+    <div class="section-header">
+      <span class="section-eyebrow">Our process</span>
+      <h2 class="section-title">Three phases. Zero guesswork.</h2>
+    </div>
+
+    <div class="process-grid">
+      <div class="process-step">
+        <div class="step-cube-container" id="cube-discovery"></div>
+        <div class="step-number">01</div>
+        <h3 class="step-title">Discovery</h3>
+        <p class="step-description">We dig into your business, audience, and competitors. No assumptions, just research-backed insights that inform every decision.</p>
+      </div>
+
+      <div class="process-step">
+        <div class="step-cube-container" id="cube-design"></div>
+        <div class="step-number">02</div>
+        <h3 class="step-title">Design</h3>
+        <p class="step-description">Strategic creative work. We explore directions, refine the strongest concepts, and craft systems built for growth.</p>
+      </div>
+
+      <div class="process-step">
+        <div class="step-cube-container" id="cube-delivery"></div>
+        <div class="step-number">03</div>
+        <h3 class="step-title">Delivery</h3>
+        <p class="step-description">Pixel-perfect implementation with comprehensive documentation. You get everything you need to maintain and scale.</p>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="cta-section">
+    <h2 class="cta-title">Ready to move?</h2>
+    <p class="cta-description">
+      We take on 4 projects per quarter to ensure every client gets our full attention.
+    </p>
+    <a href="#" class="btn btn-primary">Start a conversation</a>
+  </section>
+
+  </div>
+
+  <!-- Footer (Dark) -->
+  <div class="footer-wrapper">
+    <footer class="footer">
+      <div class="footer-left">
+        <a href="#" class="logo">
+          <svg class="logo-cube" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 28px; height: 28px;">
+            <path d="M18 2L6 9V10L18 17L30 10V9L18 2Z" fill="#FFD500"/>
+            <path d="M6 9L6 25L18 32V17L6 9Z" fill="#0051BA"/>
+            <path d="M30 9V25L18 32V17L30 9Z" fill="#C41E3A"/>
+          </svg>
+          <span class="logo-text" style="font-size: 1.125rem;">Rubikon</span>
+        </a>
+        <div class="footer-links">
+          <a href="#" class="footer-link">Twitter</a>
+          <a href="#" class="footer-link">LinkedIn</a>
+          <a href="#" class="footer-link">Dribbble</a>
+        </div>
+      </div>
+      <div class="footer-right">
+        Background by <a href="index.html">Isometric Rubik's</a>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Three.js import map -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import { initRubiks, createMiniCube, startColorTransition } from './sketch.js';
+
+    // Initialize visualization in the hero background container
+    const heroWrapper = document.querySelector('.hero-wrapper');
+    const body = document.body;
+    const heroBg = document.getElementById('hero-bg');
+
+    // Initialize the Rubik's cube visualization
+    initRubiks(heroBg);
+
+    // Initialize process step cubes
+    const cubeDiscovery = document.getElementById('cube-discovery');
+    const cubeDesign = document.getElementById('cube-design');
+    const cubeDelivery = document.getElementById('cube-delivery');
+
+    // Create mini cubes with different modes
+    createMiniCube(cubeDiscovery, { mode: 'scrambled' });
+    createMiniCube(cubeDesign, { mode: 'animating' });
+    createMiniCube(cubeDelivery, { mode: 'solved' });
+
+    // Trigger loading animation after a delay
+    const triggerAnimation = () => {
+      setTimeout(() => {
+        heroWrapper.classList.remove('loading');
+        heroWrapper.classList.add('loaded');
+        body.classList.remove('loading');
+      }, 1800); // 1.8s delay before expansion starts
+    };
+
+    // Start animation sequence
+    triggerAnimation();
+
+    // Theme toggle functionality
+    const themeToggle = document.getElementById('theme-toggle');
+    const moveTrigger = document.getElementById('move-trigger');
+
+    // Check for saved theme preference
+    let isLightMode = localStorage.getItem('theme') === 'light';
+
+    // Apply saved theme on load without transition
+    if (isLightMode) {
+      body.classList.add('no-transition');
+      body.classList.add('light-mode');
+      startColorTransition('monochrome');
+      // Re-enable transitions after a frame
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          body.classList.remove('no-transition');
+        });
+      });
+    }
+
+    const toggleTheme = () => {
+      isLightMode = !isLightMode;
+
+      if (isLightMode) {
+        // Switch to monochrome cube and light mode
+        startColorTransition('monochrome');
+        body.classList.add('light-mode');
+        localStorage.setItem('theme', 'light');
+      } else {
+        // Switch back to classic cube and dark mode
+        startColorTransition('classic');
+        body.classList.remove('light-mode');
+        localStorage.setItem('theme', 'dark');
+      }
+    };
+
+    // Theme toggle button in header
+    themeToggle.addEventListener('click', toggleTheme);
+
+    // Clicking "move" word also toggles theme
+    moveTrigger.addEventListener('click', toggleTheme);
+  </script>
+
+</body>
+</html>
