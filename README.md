@@ -2,7 +2,7 @@
 
 An interactive visualisation of a grid of Rubik's cubes in isometric projection. Watch as layers rotate with satisfying animations, creating a mesmerising pattern.
 
-**[View Live Demo](#)**
+**[View Live Demo](https://isometric-rubiks.vercel.app/)**
 
 ## Tech Stack
 
